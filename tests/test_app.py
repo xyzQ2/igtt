@@ -312,3 +312,35 @@ def test_save_analysis_includes_our_performance_score(tmp_path, cfg_file, mocker
     conn.close()
     payload = json.loads(row["json"])
     assert payload.get("performance_score") is not None
+
+
+def test_daily_run_fills_missing_follower_counts(tmp_path, cfg_file, mocker, monkeypatch):
+    """Post results carry no follower count, so without the details call the
+    per-follower metrics (40% of the score) never switch on."""
+    monkeypatch.setenv("APIFY_TOKEN", "t")
+    db_path = str(tmp_path / "test.db")
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    db.upsert_account(conn, "wineexample", category="wine")  # followers unknown
+    conn.close()
+
+    from src import apify
+    posts = [p for p in (apify.normalize_post(i) for i in json.loads(FIXTURE.read_text())) if p]
+    for p in posts:
+        p["owner_followers"] = None
+    mocker.patch("app.apify.fetch_profile_posts", return_value=posts)
+    fetch = mocker.patch("app.apify.fetch_follower_counts",
+                         return_value={"wineexample": 82000})
+    mocker.patch("app.Anthropic").return_value.messages.create.side_effect = Exception("off")
+    mocker.patch("app.analyze.analyze_video", return_value=None)
+    scored = mocker.spy(app.score, "score_posts")
+
+    app.run_daily(config_path=cfg_file, db_path=db_path,
+                  report_path=str(tmp_path / "latest.html"))
+
+    assert "wineexample" in fetch.call_args.args[1]
+    assert {p["owner_followers"] for p in scored.call_args.args[0]
+            if p["username"] == "wineexample"} == {82000}
+    conn = db.connect(db_path)
+    row = conn.execute("SELECT followers FROM accounts WHERE username='wineexample'").fetchone()
+    assert row["followers"] == 82000

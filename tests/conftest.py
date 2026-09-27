@@ -14,3 +14,12 @@ def isolate_credentials(monkeypatch):
     for name in ("IG_ACCESS_TOKEN", "IG_USER_ID", "APIFY_TOKEN",
                  "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def block_apify_network(monkeypatch):
+    """A test that forgets to mock an Apify call fails closed instead of going
+    to the network. Tests that exercise the adapter patch requests.post over this."""
+    def _refuse(*a, **k):
+        raise RuntimeError("tests must not call Apify")
+    monkeypatch.setattr("src.apify.requests.post", _refuse)

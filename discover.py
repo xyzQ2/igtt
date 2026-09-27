@@ -87,6 +87,14 @@ def run_discovery(config_path: str = "config.yaml",
 
     candidates = candidates[:MAX_CANDIDATES]
 
+    counts = apify.fetch_follower_counts(os.environ.get("APIFY_TOKEN", ""),
+                                         [c["username"] for c in candidates])
+    for cand in candidates:
+        cand["followers"] = counts.get(cand["username"], cand["followers"])
+    for username in existing:
+        if username in counts:
+            db.upsert_account(conn, username, followers=counts[username])
+
     client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     scored = score_candidates(client, candidates, cfg["brand"],
                               cfg["models"]["strategy"], cfg["categories"])
@@ -119,7 +127,7 @@ def run_discovery(config_path: str = "config.yaml",
                             max_accounts, username)
                 continue
             db.upsert_account(conn, username, category=cand.get("category"),
-                              followers=cand.get("followers"),
+                              followers=counts.get(username),
                               relevance_score=relevance, active=1)
             stats["activated"] += 1
             active_count += 1

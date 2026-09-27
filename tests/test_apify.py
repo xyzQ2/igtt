@@ -101,3 +101,25 @@ def test_fetch_profile_posts_returns_empty_on_malformed_response(mocker):
     mock_post.return_value.status_code = 200
     mock_post.return_value.json.return_value = {"error": "rate limited"}
     assert apify.fetch_profile_posts("tok", ["a"], 7, 20) == []
+
+
+def test_fetch_follower_counts_asks_for_profile_details(mocker):
+    m = mocker.patch("src.apify.requests.post")
+    m.return_value.json.return_value = [
+        {"username": "a", "followersCount": 1200},
+        {"username": "b", "followersCount": 0},       # a measured zero is real
+        {"username": "c", "followersCount": None},    # unmeasured stays out
+        "junk",
+    ]
+    assert apify.fetch_follower_counts("tok", ["a", "b", "c"]) == {"a": 1200, "b": 0}
+    body = m.call_args.kwargs["json"]
+    assert body["resultsType"] == "details"
+    assert body["directUrls"] == ["https://www.instagram.com/a/",
+                                  "https://www.instagram.com/b/",
+                                  "https://www.instagram.com/c/"]
+
+
+def test_fetch_follower_counts_empty_on_error_payload(mocker):
+    m = mocker.patch("src.apify.requests.post")
+    m.return_value.json.return_value = {"error": {"type": "user-or-token-not-found"}}
+    assert apify.fetch_follower_counts("tok", ["a"]) == {}

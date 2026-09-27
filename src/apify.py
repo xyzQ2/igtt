@@ -81,6 +81,35 @@ def fetch_profile_posts(token: str, usernames: list[str], lookback_days: int,
         return []
 
 
+def fetch_follower_counts(token: str, usernames: list[str]) -> dict:
+    """{username: followers} from profile details. {} on any failure.
+
+    Post results never carry ownerFollowersCount, so without this call the
+    per-follower metrics (40% of the score) have nothing to divide by.
+    """
+    if not usernames:
+        return {}
+    body = {
+        "directUrls": [f"https://www.instagram.com/{u}/" for u in usernames],
+        "resultsType": "details",
+        "resultsLimit": 1,
+    }
+    try:
+        resp = requests.post(ACTOR_URL, headers={"Authorization": f"Bearer {token}"},
+                             json=body, timeout=TIMEOUT)
+        resp.raise_for_status()
+        items = resp.json()
+        if not isinstance(items, list):
+            raise ValueError(f"expected a list of profiles, got {type(items).__name__}")
+    except Exception as exc:
+        logger.error("apify follower fetch failed for %d accounts: %s",
+                     len(usernames), exc)
+        return {}
+    counts = {i.get("username"): i.get("followersCount")
+              for i in items if isinstance(i, dict)}
+    return {u: n for u, n in counts.items() if u and isinstance(n, int)}
+
+
 HASHTAG_ACTOR_URL = ("https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/"
                      "run-sync-get-dataset-items")
 

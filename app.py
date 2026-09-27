@@ -43,6 +43,14 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     if own_handle not in [a["username"] for a in accounts]:
         accounts = list(accounts) + [db.get_account(conn, own_id)]
     stats["accounts"] = len(accounts)
+    # ponytail: only accounts with no count, so this costs ~nothing after day one;
+    # discover.py refreshes every active account's count weekly.
+    missing = [a["username"] for a in accounts if a["followers"] is None]
+    counts = apify.fetch_follower_counts(os.environ.get("APIFY_TOKEN", ""), missing)
+    for username, n in counts.items():
+        db.upsert_account(conn, username, followers=n)
+    accounts = [db.get_account(conn, a["id"]) if a["username"] in counts else a
+                for a in accounts]
     account_id_by_username = {a["username"]: a["id"] for a in accounts}
     followers_by_username = {a["username"]: a["followers"] for a in accounts}
 
