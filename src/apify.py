@@ -73,6 +73,12 @@ def fetch_profile_posts(token: str, usernames: list[str], lookback_days: int,
         )
         resp.raise_for_status()
         items = resp.json()
+        # Items without a shortCode are per-profile errors (private, no recent
+        # posts, blocked). Dropping them silently hid 10 of 14 accounts once.
+        for i in items:
+            if isinstance(i, dict) and not i.get("shortCode"):
+                logger.warning("apify: no posts for %s: %s %s", i.get("url") or
+                               i.get("inputUrl"), i.get("error"), i.get("errorDescription"))
         posts = [p for p in (normalize_post(i) for i in items) if p]
         logger.info("apify returned %d items, %d usable posts", len(items), len(posts))
         return posts

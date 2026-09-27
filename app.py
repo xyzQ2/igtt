@@ -97,7 +97,7 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
         enriched.update(vel)
         posts.append(enriched)
 
-    if raw_posts and all(p.get("owner_followers") is None for p in raw_posts):
+    if posts and all(p.get("owner_followers") is None for p in posts):
         logger.warning("no post reported owner_followers this run — 40%s of the "
                        "scoring weight (views_per_follower + comments_per_follower) "
                        "is inactive", "%")

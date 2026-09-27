@@ -27,7 +27,7 @@ def generate_ideas(client, context: dict, model: str, count: int) -> list:
 
     try:
         resp = client.messages.create(
-            model=model, max_tokens=8000,
+            model=model, max_tokens=16000,  # thinking counts against this
             messages=[{"role": "user", "content": prompt}],
         )
         raw = "".join(b.text for b in resp.content if hasattr(b, "text"))

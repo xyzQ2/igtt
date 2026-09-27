@@ -53,7 +53,9 @@ def extract_json(text: str):
         return None
 
 
-def _call_claude(client, model: str, prompt: str, max_tokens: int = 2000):
+def _call_claude(client, model: str, prompt: str, max_tokens: int = 16000):
+    # Sonnet 5 / Opus 5 think by default and thinking counts against max_tokens;
+    # 2000 cut the JSON off mid-object. Only tokens actually used are billed.
     resp = client.messages.create(
         model=model,
         max_tokens=max_tokens,
