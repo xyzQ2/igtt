@@ -199,7 +199,7 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
 
     email_cfg = dict(cfg.get("email", {}))
     email_cfg.update({
-        "host": os.environ.get("SMTP_HOST"), "port": os.environ.get("SMTP_PORT", 587),
+        "host": os.environ.get("SMTP_HOST"), "port": os.environ.get("SMTP_PORT") or 587,
         "user": os.environ.get("SMTP_USER"),
         "password": os.environ.get("SMTP_PASSWORD"),
         "to": os.environ.get("SMTP_TO"),

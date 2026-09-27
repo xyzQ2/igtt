@@ -78,7 +78,7 @@ def run_discovery(config_path: str = "config.yaml",
     existing = {r["username"]: r for r in db.get_active_accounts(conn)
                 if r["username"] != own}
     hashtag_candidates = apify.search_hashtag_accounts(
-        os.environ.get("APIFY_TOKEN", ""), disc["hashtags"], limit=200)
+        os.environ.get("APIFY_TOKEN", ""), disc["hashtags"], limit=600)
 
     # Build candidate list: existing accounts first (must survive cap), then new ones
     candidates = [{"username": username,

@@ -75,4 +75,4 @@ models:
   video: models/gemini-2.5-flash
 
 email:
-  enabled: false
+  enabled: true  # needs SMTP_HOST/USER/PASSWORD/TO secrets; a failed send never fails the run
