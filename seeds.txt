@@ -1,18 +1,18 @@
 # username, category
-# Replace these placeholders with real handles before the first run.
-# ~15 wine, 10 meme, 10 restaurant/hospitality, 10 alcohol brand, 10 lifestyle/food.
+# Load with: python3 seed_accounts.py
+# Seeds start active; weekly discovery re-scores them and drops any below
+# discovery.deactivate_below, so a poor pick removes itself.
 
-# --- wine ---
-# examplewineaccount, wine
+# --- wine memes / wine humour ---
+shittywinememes, wine memes
+winewankers, wine memes
+disgorgeous, wine
+awinememe, wine memes
 
-# --- wine memes ---
-# examplewinememes, wine memes
-
-# --- hospitality / restaurants ---
-# exampleserverlife, hospitality
-
-# --- alcohol brands ---
-# examplebrand, alcohol
-
-# --- lifestyle / food ---
-# examplefoodie, food
+# --- hospitality / restaurant humour ---
+therestaurantlaunch, hospitality
+server_life, hospitality
+serverlifememes, hospitality
+yesterdayslimes, hospitality
+drewtalbert, comedy
+bartender_memes, hospitality
