@@ -2,17 +2,5 @@
 # Load with: python3 seed_accounts.py
 # Seeds start active; weekly discovery re-scores them and drops any below
 # discovery.deactivate_below, so a poor pick removes itself.
-
-# --- wine memes / wine humour ---
-shittywinememes, wine memes
-winewankers, wine memes
-disgorgeous, wine
-awinememe, wine memes
-
-# --- hospitality / restaurant humour ---
-therestaurantlaunch, hospitality
-server_life, hospitality
-serverlifememes, hospitality
-yesterdayslimes, hospitality
-drewtalbert, comedy
-bartender_memes, hospitality
+# Empty for now: discovery finds comparables from discovery.hashtags.
+# Add handles Jaqueline names here, e.g.:  somemodel, modeling

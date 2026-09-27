@@ -6,7 +6,7 @@ Target market: {target_market}
 Score each candidate 0-100 on how useful it is to monitor, weighting:
 - Audience relevance 30%
 - Content overlap 25%
-- Humor/style compatibility 20%
+- Style/tone compatibility 20%
 - Recent performance 15%
 - Originality/inspiration value 10%
 

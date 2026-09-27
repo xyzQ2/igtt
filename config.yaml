@@ -1,15 +1,15 @@
 brand:
-  name: Drink Toilet Wine
-  instagram: drinktoiletwine
+  name: Jaqueline
+  instagram: jaquelinebycie
   voice: >
-    Irreverent wine humour for people who drink cheap wine without apology.
-    Service-industry insider energy. Never precious, never educational-lecture.
+    Editorial female fashion model, confident and aspirational.
   # What the brand sells and who it is for. Every prompt reads these, so changing
   # them retargets discovery, analysis, pattern fit and the daily ideas.
-  industry: Budget wine
+  industry: Female fashion modeling
   target_market: >
-    Adults 21-35 who drink cheap wine without apology, many of them working in
-    restaurants and bars.
+    Women and fashion followers aged 18-35 across North and South America
+    (US, Canada, Mexico, Brazil, Colombia, Argentina); English, Spanish and
+    Portuguese speaking.
 
 monitoring:
   max_accounts: 75
@@ -21,14 +21,12 @@ monitoring:
   daily_top_posts: 25
 
 categories:
-  - wine
-  - wine memes
-  - alcohol
-  - hospitality
-  - restaurants
+  - fashion
+  - modeling
+  - beauty
+  - style
   - lifestyle
-  - food
-  - comedy
+  - fitness
 
 scoring:
   views_per_follower: 0.30
@@ -43,16 +41,16 @@ discovery:
   activate_above: 60
   deactivate_below: 50
   hashtags:
-    - winememes
-    - serverlife
-    - restaurantlife
-    - winetok
-    - bartenderlife
-    - cheapwine
-    - boxedwine
-    - winehumor
-    - servermemes
-    - hospitalitylife
+    - fashionmodel
+    - femalemodel
+    - modellife
+    - ootd
+    - streetstyle
+    - latinamodel
+    - modelo
+    - moda
+    - modabrasileira
+    - estilo
 
 ideas:
   daily_count: 10

@@ -217,14 +217,15 @@ def test_collect_binds_real_shortcode_to_posted_idea(tmp_path, cfg_file, mocker,
     db_path = str(tmp_path / "test.db")
     conn = db.connect(db_path)
     db.init_schema(conn)
-    db.upsert_account(conn, "drinktoiletwine", category="own", active=1)
+    own = app.load_config(cfg_file)["brand"]["instagram"]
+    db.upsert_account(conn, own, category="own", active=1)
     idea_id = db.save_idea(conn, {"concept": "c", "source_pattern": "P"}, None,
                            "LOW", 80.0)
     db.mark_idea_posted(conn, idea_id, "ig-media-id-1")
     conn.close()
 
     mocker.patch("app.apify.fetch_profile_posts", return_value=[
-        _one_post(shortcode="REALCODE1", username="drinktoiletwine",
+        _one_post(shortcode="REALCODE1", username=own,
                   owner_followers=5000)
     ])
     mocker.patch("app.analyze.analyze_text", return_value=None)
