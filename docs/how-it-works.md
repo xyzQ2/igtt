@@ -12,8 +12,9 @@ Every number below lives in `config.yaml`, which is the only file you need to ed
 Two ways in, both weekly (`discover.py`, Mondays 10:00 UTC).
 
 **Hashtag search.** Apify searches the hashtags in `discovery.hashtags` — currently
-`winememes`, `serverlife`, `restaurantlife`, `winetok`, `bartenderlife`, `cheapwine`,
-`boxedwine`, `winehumor`, `servermemes`, `hospitalitylife` — and returns up to 200 posts
+`fashionmodel`, `femalemodel`, `modellife`, `ootd`, `streetstyle`, `latinamodel`,
+`modelo`, `moda`, `modabrasileira`, `estilo` (English, Spanish and Portuguese, for
+North and South America) — and returns up to 200 posts
 across them, split evenly per tag.
 
 **The accounts already tracked.** These are put at the front of the candidate list so they
@@ -79,7 +80,9 @@ Numeric ranking is free, so it runs over everything. AI is metered, so it runs o
 the top of the pile. That is the whole cost-control design.
 
 **Text tier** — top `candidate_posts_for_text_ai` (40) posts/day, Claude
-(`prompts/analyze_text.md`). For each post it extracts:
+(`prompts/analyze_text.md`). Claude reads the caption and metrics **and the post's cover
+image** (downloaded from Instagram's CDN; if that fails, the analysis runs on text alone).
+For each post it extracts:
 
 - **Hook** and **hook type** — curiosity / controversy / relatability / surprise / identity
   / aspiration / humor / disgust / status
@@ -93,7 +96,7 @@ the top of the pile. That is the whole cost-control design.
 - Scores 0–100 for hook, shareability, originality, relatability, rewatchability, cultural
   relevance, plus an overall `ai_virality_score`
 
-**Video tier** — top `candidate_posts_for_video_ai` (15) posts/day, Gemini
+**Video tier** — currently **off** (`candidate_posts_for_video_ai: 0`; 15 when on), Gemini
 (`prompts/analyze_video.md`). Gemini watches the actual video, because Claude has no native
 video input. This is where pacing, cuts, on-screen text timing and audio get read — things
 invisible in a caption.

@@ -1,12 +1,13 @@
 ---
 name: igtt
-description: Use when working in the igtt project — the daily Instagram content-intelligence system for @drinktoiletwine. Covers the pipeline stages, the None-never-0 data rule, the cost ceilings, the prompt-formatting traps, and the publish guardrails. Invoke before editing src/score.py, src/apify.py, app.py, post.py, discover.py, or anything under prompts/.
+description: Use when working in the igtt project — the daily Instagram content-intelligence system (currently @jaquelinebycie, a female fashion model; formerly @drinktoiletwine). Covers the pipeline stages, the None-never-0 data rule, the cost ceilings, the prompt-formatting traps, and the publish guardrails. Invoke before editing src/score.py, src/apify.py, app.py, post.py, discover.py, or anything under prompts/.
 ---
 
 # igtt
 
-Daily Instagram content intelligence for [@drinktoiletwine](https://www.instagram.com/drinktoiletwine/).
-Finds high-performing posts in the wine / meme / hospitality niche, works out why they
+Daily Instagram content intelligence, currently for [@jaquelinebycie](https://www.instagram.com/jaquelinebycie/)
+(female fashion model, North and South America; previously @drinktoiletwine, whose wine
+accounts are deactivated in the DB, not deleted). Finds high-performing posts in the niche, works out why they
 worked, abstracts each into a reusable format, generates original briefs, and measures how
 the published results perform.
 
