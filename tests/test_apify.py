@@ -41,7 +41,7 @@ def test_fetch_profile_posts_builds_expected_request(mocker):
     mock_post.return_value.status_code = 200
     mock_post.return_value.json.return_value = raw_items()
 
-    posts = apify.fetch_profile_posts("tok", ["wineexample"], lookback_days=7,
+    posts = apify.fetch_profile_posts("tok", ["wineexample"], lookback_days=100000,
                                       results_limit=20)
 
     assert len(posts) == 2, "the junk item must be dropped"
@@ -51,7 +51,7 @@ def test_fetch_profile_posts_builds_expected_request(mocker):
     assert kwargs["headers"]["Authorization"] == "Bearer tok"
     body = kwargs["json"]
     assert body["directUrls"] == ["https://www.instagram.com/wineexample/"]
-    assert body["onlyPostsNewerThan"] == "7 days"
+    assert "onlyPostsNewerThan" not in body, "old pinned posts made the actor stop early"
     assert body["resultsLimit"] == 20
     assert body["resultsType"] == "posts"
 
@@ -123,3 +123,17 @@ def test_fetch_follower_counts_empty_on_error_payload(mocker):
     m = mocker.patch("src.apify.requests.post")
     m.return_value.json.return_value = {"error": {"type": "user-or-token-not-found"}}
     assert apify.fetch_follower_counts("tok", ["a"]) == {}
+
+
+def test_fetch_profile_posts_drops_posts_older_than_lookback(mocker):
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    items = [
+        {"shortCode": "NEW", "timestamp": (now - timedelta(days=2)).isoformat()},
+        {"shortCode": "PINNED", "timestamp": (now - timedelta(days=400)).isoformat()},
+        {"shortCode": "UNDATED"},
+    ]
+    mock_post = mocker.patch("src.apify.requests.post")
+    mock_post.return_value.json.return_value = items
+    posts = apify.fetch_profile_posts("tok", ["a"], lookback_days=7, results_limit=20)
+    assert [p["shortcode"] for p in posts] == ["NEW", "UNDATED"]

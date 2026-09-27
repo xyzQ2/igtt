@@ -1,6 +1,7 @@
 """Apify adapter. The only module in the project that knows scraping exists."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -61,7 +62,6 @@ def fetch_profile_posts(token: str, usernames: list[str], lookback_days: int,
         "directUrls": [f"https://www.instagram.com/{u}/" for u in usernames],
         "resultsType": "posts",
         "resultsLimit": results_limit,
-        "onlyPostsNewerThan": f"{lookback_days} days",
         "addParentData": False,
     }
     try:
@@ -80,6 +80,12 @@ def fetch_profile_posts(token: str, usernames: list[str], lookback_days: int,
                 logger.warning("apify: no posts for %s: %s %s", i.get("url") or
                                i.get("inputUrl"), i.get("error"), i.get("errorDescription"))
         posts = [p for p in (normalize_post(i) for i in items) if p]
+        # The lookback is applied here, not via the actor's onlyPostsNewerThan:
+        # with it, 8 of 14 profiles came back "Empty or private data" — a pinned
+        # post older than the window stops the scraper before the new posts.
+        cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        posts = [p for p in posts if not p["posted_at"]
+                 or datetime.fromisoformat(p["posted_at"]) >= cutoff]
         logger.info("apify returned %d items, %d usable posts", len(items), len(posts))
         return posts
     except Exception as exc:
