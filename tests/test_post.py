@@ -221,14 +221,14 @@ def test_publish_idea_refuses_repost_with_empty_credit_handle(db_path, mocker, m
 
 
 def test_resolve_media_url_joins_bare_repo_path():
-    base = "https://raw.githubusercontent.com/xyzQ2/yt-analyzer/igtt-build/"
+    base = "https://raw.githubusercontent.com/xyzQ2/igtt/igtt-build/"
     assert post.resolve_media_url("media/reel.mp4", base) == base + "media/reel.mp4"
     # A leading slash must not reset the path back to the domain root.
     assert post.resolve_media_url("/media/reel.mp4", base) == base + "media/reel.mp4"
 
 
 def test_resolve_media_url_passes_absolute_urls_through():
-    base = "https://raw.githubusercontent.com/xyzQ2/yt-analyzer/igtt-build/"
+    base = "https://raw.githubusercontent.com/xyzQ2/igtt/igtt-build/"
     assert post.resolve_media_url("https://cdn/v.mp4", base) == "https://cdn/v.mp4"
     assert post.resolve_media_url("http://cdn/v.mp4", base) == "http://cdn/v.mp4"
 

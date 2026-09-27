@@ -67,7 +67,7 @@ posting:
   # can just say "media/reel-0912.mp4". The repo is public, which is the only
   # reason raw.githubusercontent.com works — Instagram fetches the file itself and
   # never sends credentials.
-  media_base_url: https://raw.githubusercontent.com/xyzQ2/yt-analyzer/igtt-build/
+  media_base_url: https://raw.githubusercontent.com/xyzQ2/igtt/igtt-build/
 
 models:
   text_analysis: claude-sonnet-5
