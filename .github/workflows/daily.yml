@@ -2,7 +2,7 @@ name: Daily intelligence run
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 11:00 UTC daily
+    - cron: '0 11 * * 1,4'   # Mon + Thu 11:00 UTC (Mon runs after discover.yml); twice weekly for cost
   workflow_dispatch:
 
 permissions:

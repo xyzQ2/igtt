@@ -70,8 +70,8 @@ posting:
   media_base_url: https://raw.githubusercontent.com/xyzQ2/igtt/igtt-build/
 
 models:
-  text_analysis: claude-sonnet-5
-  strategy: claude-opus-5
+  text_analysis: claude-haiku-4-5-20251001
+  strategy: claude-sonnet-5  # effort defaults to high; was claude-opus-5
   video: models/gemini-2.5-flash
 
 email:
