@@ -28,7 +28,8 @@ Claude scores 0-100       → sqlite: posts + snapshots
                                             → track our own metrics
 ```
 
-Two AI vendors on purpose: Claude does all text, Gemini watches video because Claude has
+**Video tier is OFF** (`candidate_posts_for_video_ai: 0`, 2026-09-27, user's cost call —
+do not re-enable unasked). Two AI vendors on purpose: Claude does all text, Gemini watches video because Claude has
 no native video input. Splitting them was cheaper than frame extraction plus transcription.
 
 **Media hosting.** The Graph API has no upload endpoint — Instagram fetches the `media_url`
@@ -48,7 +49,7 @@ Two truthiness guards are deliberate and carry comments saying so: `engagement_r
 `if views` and `vs_baseline`'s `and baseline` — division by zero is undefined, not missing.
 
 **Cost ceilings are enforced by truncation in code, not by trust.** 75 accounts, 7-day
-lookback, 40 text analyses/day, 15 video analyses/day, 25 top posts, 10 ideas/day,
+lookback, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day,
 1 post/day. All live in `config.yaml`; each has a call site that actually slices. If you
 add a ceiling, enforce it — `posting.max_per_day` sat unenforced for a whole build while
 the README claimed otherwise.
@@ -79,6 +80,26 @@ mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-a
   Actions has no persistent disk and the 30/90-day windows need the history. All three
   workflows share `concurrency: group: igtt-db` — a workflow that writes the DB without
   it will silently overwrite a day of history, since git cannot merge SQLite.
+
+- **Thinking models eat `max_tokens`.** Sonnet 5 and Opus 5 think by default and
+  thinking counts against `max_tokens`. At 2000/4000 the JSON was cut off and
+  `extract_json` quietly returned nothing ("pattern detection returned no usable array",
+  "bad text analysis"). Every Claude call now uses 16000; only used tokens are billed.
+  Opus 5 also **rejects `temperature`** (400), so determinism can't come from sampling.
+- **Apify: two actors, three shapes.** Profile posts and profile details come from
+  `apify~instagram-scraper` (`directUrls`, `resultsType` `posts` or `details`). Hashtag
+  search must use `apify~instagram-hashtag-scraper` with a `hashtags` list — the general
+  scraper's `search` field takes ONE query, so joined tags matched nothing and discovery
+  found 0 accounts for two weeks while every run was green. Post items never carry
+  `ownerFollowersCount`; follower counts come only from the `details` call
+  (`fetch_follower_counts`). Items without `shortCode` are per-profile errors and are
+  logged, not silently dropped. An auth failure returns a dict, not a list — guard it.
+- **Green runs hide empty pipelines.** Every stage catches and logs, so a run with 0
+  accounts, 0 videos or no patterns still exits 0. After any change, read the
+  `daily run complete` / `discovery complete` stats line, not the run status.
+- **Discovery excludes our own account and damps noise.** `brand.instagram` is never
+  scored (app.py always collects it). An active account's new relevance score is averaged
+  with its stored one, because the same account scored 88 then 45 minutes apart.
 
 ## Layout
 
