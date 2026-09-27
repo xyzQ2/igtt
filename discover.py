@@ -72,7 +72,11 @@ def run_discovery(config_path: str = "config.yaml",
     disc = cfg["discovery"]
     max_accounts = cfg["monitoring"]["max_accounts"]
 
-    existing = {r["username"]: r for r in db.get_active_accounts(conn)}
+    # Our own account is always collected by app.py; scoring it as a competitor
+    # only produced noise (it swung between 5 and 100).
+    own = cfg["brand"]["instagram"]
+    existing = {r["username"]: r for r in db.get_active_accounts(conn)
+                if r["username"] != own}
     hashtag_candidates = apify.search_hashtag_accounts(
         os.environ.get("APIFY_TOKEN", ""), disc["hashtags"], limit=200)
 
@@ -82,7 +86,7 @@ def run_discovery(config_path: str = "config.yaml",
                    "sample_captions": []}
                   for username, row in existing.items()]
     for cand in hashtag_candidates:
-        if cand["username"] not in existing:
+        if cand["username"] not in existing and cand["username"] != own:
             candidates.append(cand)
 
     candidates = candidates[:MAX_CANDIDATES]
@@ -112,6 +116,12 @@ def run_discovery(config_path: str = "config.yaml",
                            username, raw_score)
             continue
         is_active = username in existing
+        # The model can't be run at temperature 0 (Opus 5 rejects it), and the
+        # same account scored 88 then 45 minutes apart. Averaging with the stored
+        # score damps that, so one bad draw can't flip an account on or off.
+        prev = existing[username]["relevance_score"] if is_active else None
+        if prev is not None:
+            relevance = (prev + relevance) / 2
 
         if relevance < disc["deactivate_below"]:
             if is_active:

@@ -223,3 +223,39 @@ def test_run_discovery_preserves_existing_accounts_before_cap(db_path, mocker, m
 
     # List must be capped at MAX_CANDIDATES (100)
     assert len(passed_candidates) <= 100
+
+
+def test_run_discovery_never_scores_our_own_account(db_path, mocker, monkeypatch):
+    """app.py always collects our account; discovery scoring it only produced
+    noise (5 one run, 100 the next) and deactivated it."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "t")
+    own = discover.load_config("config.yaml")["brand"]["instagram"]
+    conn = db.connect(db_path)
+    db.upsert_account(conn, own, category="own", active=1)
+    conn.close()
+    mocker.patch("discover.apify.search_hashtag_accounts",
+                 return_value=[{"username": own, "followers": 1, "sample_captions": []}])
+    score = mocker.patch("discover.score_candidates", return_value=[])
+    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+
+    discover.run_discovery(config_path="config.yaml", db_path=db_path)
+    assert own not in [c["username"] for c in score.call_args.args[1]]
+
+
+def test_run_discovery_averages_with_the_stored_score(db_path, mocker, monkeypatch):
+    """One noisy draw (88 -> 20) must not deactivate an established account."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "t")
+    conn = db.connect(db_path)
+    db.upsert_account(conn, "steady", relevance_score=88, active=1)
+    conn.close()
+    mocker.patch("discover.apify.search_hashtag_accounts", return_value=[])
+    mocker.patch("discover.score_candidates",
+                 return_value=[{"username": "steady", "relevance_score": 20}])
+    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+
+    stats = discover.run_discovery(config_path="config.yaml", db_path=db_path)
+    assert stats["deactivated"] == 0
+    conn = db.connect(db_path)
+    row = conn.execute("SELECT relevance_score, active FROM accounts "
+                       "WHERE username='steady'").fetchone()
+    assert (row["relevance_score"], row["active"]) == (54, 1)
