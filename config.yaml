@@ -39,7 +39,7 @@ scoring:
   acceleration_threshold: 1.5
 
 discovery:
-  activate_above: 70
+  activate_above: 60
   deactivate_below: 50
   hashtags:
     - winememes
@@ -47,6 +47,11 @@ discovery:
     - restaurantlife
     - winetok
     - bartenderlife
+    - cheapwine
+    - boxedwine
+    - winehumor
+    - servermemes
+    - hospitalitylife
 
 ideas:
   daily_count: 10

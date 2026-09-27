@@ -16,7 +16,7 @@ the published results perform.
 discover.py (weekly)      app.py (daily)                     post.py (on dispatch)
 hashtag search        →   Apify: recent posts, tracked accts
 Claude scores 0-100       → sqlite: posts + snapshots
-≥70 keep / <50 drop       → numeric rank (all posts, free)
+≥60 keep / <50 drop       → numeric rank (all posts, free)
                           → Claude text tier   (top 40)
                           → Gemini video tier  (top 15)
                           → pattern clustering (7/30/90d)

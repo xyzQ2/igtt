@@ -12,8 +12,9 @@ Every number below lives in `config.yaml`, which is the only file you need to ed
 Two ways in, both weekly (`discover.py`, Mondays 10:00 UTC).
 
 **Hashtag search.** Apify searches the hashtags in `discovery.hashtags` — currently
-`winememes`, `serverlife`, `restaurantlife`, `winetok`, `bartenderlife` — and returns up to
-200 accounts posting under them.
+`winememes`, `serverlife`, `restaurantlife`, `winetok`, `bartenderlife`, `cheapwine`,
+`boxedwine`, `winehumor`, `servermemes`, `hospitalitylife` — and returns up to 200 posts
+across them, split evenly per tag.
 
 **The accounts already tracked.** These are put at the front of the candidate list so they
 always survive the 100-candidate cap; a new hashtag hit can never push an established
@@ -25,8 +26,8 @@ what happens:
 
 | Score | Effect |
 |---|---|
-| ≥ `discovery.activate_above` (70) | Activated — starts being collected daily |
-| 50–69 | Score updated, status unchanged |
+| ≥ `discovery.activate_above` (60) | Activated — starts being collected daily |
+| 50–59 | Score updated, status unchanged |
 | < `discovery.deactivate_below` (50) | Deactivated — stops being collected |
 
 The pool is capped at `monitoring.max_accounts` (75). At the cap, new accounts are not
