@@ -4,3 +4,8 @@
 # discovery.deactivate_below, so a poor pick removes itself.
 # Empty for now: discovery finds comparables from discovery.hashtags.
 # Add handles Jaqueline names here, e.g.:  somemodel, modeling
+meikawoollard, modeling
+kaiagerber, modeling
+bhavithamandava, modeling
+annakulinova, modeling
+biruiz, modeling
