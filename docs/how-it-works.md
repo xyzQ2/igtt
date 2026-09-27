@@ -12,8 +12,8 @@ Every number below lives in `config.yaml`, which is the only file you need to ed
 Two ways in, both weekly (`discover.py`, Mondays 10:00 UTC).
 
 **Hashtag search.** Apify searches the hashtags in `discovery.hashtags` — currently
-`fashionmodel`, `femalemodel`, `modellife`, `ootd`, `streetstyle`, `latinamodel`,
-`modelo`, `moda`, `modabrasileira`, `estilo` (English, Spanish and Portuguese, for
+`fashionmodel`, `femalemodel`, `modellife`, `editorialmodel`, `instamodel`, `latinamodel`,
+`modelobrasileira`, `modelocolombiana`, `modelomexicana`, `modelpolaroids` (English, Spanish and Portuguese, for
 North and South America) — and returns up to 200 posts
 across them, split evenly per tag.
 

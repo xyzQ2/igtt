@@ -103,6 +103,12 @@ def run_discovery(config_path: str = "config.yaml",
     scored = score_candidates(client, candidates, cfg["brand"],
                               cfg["models"]["strategy"], cfg["categories"])
 
+    # Only activations are stored, so log the near misses: without them there
+    # is no way to tell whether the hashtags or the threshold need changing.
+    for cand in sorted(scored, key=lambda c: -(c.get("relevance_score") or 0))[:25]:
+        logger.info("scored %s: %s (%s)", cand.get("username"),
+                    cand.get("relevance_score"), (cand.get("reason") or "")[:100])
+
     stats = {"evaluated": len(scored), "activated": 0, "deactivated": 0}
     active_count = len(existing)
 
