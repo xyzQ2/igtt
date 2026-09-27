@@ -158,3 +158,40 @@ def test_analyze_video_rejects_incomplete_blueprint(mocker):
     )
     assert analyze.analyze_video("key", "https://scontent.cdninstagram.com/x.mp4",
                                  "models/gemini-2.5-flash") is None
+
+
+THUMB = "https://scontent.cdninstagram.com/v/t51/cover.jpg"
+
+
+def test_analyze_text_sends_the_cover_image(mocker):
+    get = mocker.patch("src.analyze.requests.get")
+    get.return_value.headers = {"Content-Type": "image/jpeg"}
+    get.return_value.content = b"\xff\xd8jpeg"
+    client = mocker.Mock()
+    client.messages.create.return_value = fake_response(json.dumps(VALID))
+    assert analyze.analyze_text(client, {"shortcode": "A", "thumbnail_url": THUMB},
+                                {"name": "D", "voice": "v"}, "claude-sonnet-5")
+    content = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert content[0]["type"] == "image"
+    assert content[0]["source"]["media_type"] == "image/jpeg"
+    assert content[1]["type"] == "text"
+
+
+def test_analyze_text_falls_back_to_text_when_image_fails(mocker):
+    mocker.patch("src.analyze.requests.get", side_effect=Exception("403"))
+    client = mocker.Mock()
+    client.messages.create.return_value = fake_response(json.dumps(VALID))
+    assert analyze.analyze_text(client, {"shortcode": "A", "thumbnail_url": THUMB},
+                                {"name": "D", "voice": "v"}, "claude-sonnet-5")
+    assert isinstance(client.messages.create.call_args.kwargs["messages"][0]["content"],
+                      str)
+
+
+def test_analyze_text_never_fetches_untrusted_thumbnail_hosts(mocker):
+    get = mocker.patch("src.analyze.requests.get")
+    client = mocker.Mock()
+    client.messages.create.return_value = fake_response(json.dumps(VALID))
+    analyze.analyze_text(client, {"shortcode": "A",
+                                  "thumbnail_url": "http://169.254.169.254/x.jpg"},
+                         {"name": "D", "voice": "v"}, "claude-sonnet-5")
+    get.assert_not_called()

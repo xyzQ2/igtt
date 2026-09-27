@@ -23,3 +23,12 @@ def block_apify_network(monkeypatch):
     def _refuse(*a, **k):
         raise RuntimeError("tests must not call Apify")
     monkeypatch.setattr("src.apify.requests.post", _refuse)
+
+
+@pytest.fixture(autouse=True)
+def block_media_downloads(monkeypatch):
+    """Same for thumbnail and video downloads. Tests that need one patch
+    requests.get over this."""
+    def _refuse(*a, **k):
+        raise RuntimeError("tests must not download media")
+    monkeypatch.setattr("src.analyze.requests.get", _refuse)

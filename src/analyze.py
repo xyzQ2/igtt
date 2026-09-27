@@ -1,5 +1,6 @@
 """AI analysis. Claude handles text; Gemini handles video (see analyze_video)."""
 
+import base64
 import json
 import logging
 import re
@@ -28,6 +29,8 @@ VIDEO_REQUIRED_KEYS = {
 }
 VIDEO_MAX_BYTES = 20 * 1024 * 1024  # inline upload ceiling
 ALLOWED_VIDEO_HOSTS = ("cdninstagram.com", "fbcdn.net")
+IMAGE_MAX_BYTES = 5 * 1024 * 1024  # Claude's per-image limit
+IMAGE_TYPES = ("image/jpeg", "image/png", "image/gif", "image/webp")
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
@@ -53,13 +56,44 @@ def extract_json(text: str):
         return None
 
 
-def _call_claude(client, model: str, prompt: str, max_tokens: int = 16000):
+def _trusted_https(url) -> bool:
+    """Only fetch scraped URLs from Instagram's own CDN over https."""
+    parsed = urlparse(url or "")
+    host = parsed.hostname or ""
+    return parsed.scheme == "https" and any(
+        host == h or host.endswith("." + h) for h in ALLOWED_VIDEO_HOSTS)
+
+
+def _image_block(url):
+    """The post's cover image as a Claude image block. None on any failure, so
+    the analysis falls back to text only rather than failing."""
+    if not _trusted_https(url):
+        return None
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("thumbnail download failed for %s: %s", url, exc)
+        return None
+    media_type = resp.headers.get("Content-Type", "").split(";")[0].strip()
+    if media_type not in IMAGE_TYPES or len(resp.content) > IMAGE_MAX_BYTES:
+        logger.warning("unusable thumbnail (%s, %d bytes): %s",
+                       media_type, len(resp.content), url)
+        return None
+    return {"type": "image", "source": {
+        "type": "base64", "media_type": media_type,
+        "data": base64.b64encode(resp.content).decode("ascii")}}
+
+
+def _call_claude(client, model: str, prompt: str, max_tokens: int = 16000,
+                 image=None):
     # Sonnet 5 / Opus 5 think by default and thinking counts against max_tokens;
     # 2000 cut the JSON off mid-object. Only tokens actually used are billed.
+    content = [image, {"type": "text", "text": prompt}] if image else prompt
     resp = client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": content}],
     )
     return "".join(block.text for block in resp.content if hasattr(block, "text"))
 
@@ -79,9 +113,11 @@ def analyze_text(client, post: dict, brand: dict, model: str):
         post_json=json.dumps(payload, indent=2, default=str),
     )
 
+    # Fashion and model content is visual; captions alone say little.
+    image = _image_block(post.get("thumbnail_url"))
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            raw = _call_claude(client, model, prompt)
+            raw = _call_claude(client, model, prompt, image=image)
         except Exception as exc:
             logger.error("claude text analysis failed for %s: %s",
                          post.get("shortcode"), exc)
@@ -102,11 +138,7 @@ def analyze_video(api_key: str, video_url, model: str):
     if not video_url:
         return None
 
-    parsed = urlparse(video_url)
-    host = parsed.hostname or ""
-    if parsed.scheme != "https" or not any(
-        host == h or host.endswith("." + h) for h in ALLOWED_VIDEO_HOSTS
-    ):
+    if not _trusted_https(video_url):
         logger.error("refusing to fetch video_url with untrusted scheme/host: %s",
                      video_url)
         return None

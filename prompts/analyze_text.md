@@ -7,6 +7,9 @@ Target market: {target_market}
 
 Do not copy the content. Extract reusable structure only.
 
+If an image is attached, it is the post's cover image. Use it for the hook,
+composition, pose and styling; do not describe people's bodies or identity.
+
 Post data:
 {post_json}
 
