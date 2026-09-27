@@ -157,7 +157,7 @@ its data, and how the loop closes.
 
 | Want | Change |
 |---|---|
-| A different niche | `discovery.hashtags`, `categories`, `brand.voice` |
+| A different niche or audience | `brand.industry`, `brand.target_market`, `discovery.hashtags`, `categories`, `brand.voice` |
 | Wider account net | `monitoring.max_accounts`, `discovery.activate_above` |
 | More/fewer AI analyses (cost) | `candidate_posts_for_text_ai`, `candidate_posts_for_video_ai` |
 | Reward reach over engagement | `scoring.*` weights |

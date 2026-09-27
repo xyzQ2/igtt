@@ -1,5 +1,7 @@
 You are evaluating Instagram accounts as monitoring targets for {brand_name}.
 Brand voice: {brand_voice}
+Industry: {industry}
+Target market: {target_market}
 
 Score each candidate 0-100 on how useful it is to monitor, weighting:
 - Audience relevance 30%

@@ -81,7 +81,7 @@ def test_detect_patterns_parses_array(mocker):
     client.messages.create.return_value = fake_response(json.dumps(PATTERNS))
     out = patterns.detect_patterns(
         client, {"7": [{"reusable_pattern": "x"}], "30": [], "90": []},
-        "claude-opus-5", brand_name="Drink Toilet Wine")
+        "claude-opus-5", brand={"name": "Drink Toilet Wine"})
     assert out[0]["pattern"] == "Service-industry confessionals"
     assert out[0]["trend_direction"] == "rising"
 
@@ -89,7 +89,7 @@ def test_detect_patterns_parses_array(mocker):
 def test_detect_patterns_returns_empty_with_no_analyses(mocker):
     client = mocker.Mock()
     out = patterns.detect_patterns(client, {"7": [], "30": [], "90": []},
-                                   "claude-opus-5", brand_name="D")
+                                   "claude-opus-5", brand={"name": "D"})
     assert out == []
     client.messages.create.assert_not_called()
 
@@ -99,5 +99,5 @@ def test_detect_patterns_survives_bad_response(mocker):
     client.messages.create.return_value = fake_response("sorry")
     out = patterns.detect_patterns(client, {"7": [{"reusable_pattern": "x"}],
                                             "30": [], "90": []},
-                                   "claude-opus-5", brand_name="D")
+                                   "claude-opus-5", brand={"name": "D"})
     assert out == []

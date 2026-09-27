@@ -29,3 +29,13 @@ def test_config_documents_that_posting_auto_is_unused():
                      if line.strip().startswith("auto:"))
     preceding = "\n".join(text.splitlines()[max(0, auto_line - 4):auto_line])
     assert "unused" in preceding or "intentionally" in preceding
+
+
+def test_industry_and_target_market_reach_every_formatted_prompt():
+    """The operator sets these in config.yaml; a prompt that drops the placeholder
+    silently stops retargeting on them."""
+    brand = load_config("config.yaml")["brand"]
+    assert brand["industry"].strip() and brand["target_market"].strip()
+    for name in ("discover", "analyze_text", "patterns", "ideas"):
+        text = Path(f"prompts/{name}.md").read_text()
+        assert "{industry}" in text and "{target_market}" in text, name

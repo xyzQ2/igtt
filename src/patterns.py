@@ -24,14 +24,16 @@ def _summarise(analyses: list) -> list:
     return out
 
 
-def detect_patterns(client, windows: dict, model: str, brand_name: str) -> list:
+def detect_patterns(client, windows: dict, model: str, brand: dict) -> list:
     """Cluster the 7/30/90-day analyses into patterns. [] on failure or no data."""
     if not any(windows.get(k) for k in ("7", "30", "90")):
         logger.info("no analyses to cluster")
         return []
 
     prompt = load_prompt("patterns").format(
-        brand_name=brand_name,
+        brand_name=brand.get("name", ""),
+        industry=brand.get("industry", ""),
+        target_market=brand.get("target_market", ""),
         window_7=json.dumps(_summarise(windows.get("7", [])), indent=1),
         window_30=json.dumps(_summarise(windows.get("30", [])), indent=1),
         window_90=json.dumps(_summarise(windows.get("90", [])), indent=1),

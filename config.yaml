@@ -4,6 +4,12 @@ brand:
   voice: >
     Irreverent wine humour for people who drink cheap wine without apology.
     Service-industry insider energy. Never precious, never educational-lecture.
+  # What the brand sells and who it is for. Every prompt reads these, so changing
+  # them retargets discovery, analysis, pattern fit and the daily ideas.
+  industry: Budget wine
+  target_market: >
+    Adults 21-35 who drink cheap wine without apology, many of them working in
+    restaurants and bars.
 
 monitoring:
   max_accounts: 75

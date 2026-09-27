@@ -16,6 +16,8 @@ def generate_ideas(client, context: dict, model: str, count: int) -> list:
     prompt = load_prompt("ideas").format(
         brand_name=brand.get("name", ""),
         brand_voice=brand.get("voice", ""),
+        industry=brand.get("industry", ""),
+        target_market=brand.get("target_market", ""),
         count=count,
         top_posts=json.dumps(context.get("top_posts", []), indent=1, default=str),
         patterns=json.dumps(context.get("patterns", []), indent=1, default=str),

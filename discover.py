@@ -29,6 +29,8 @@ def score_candidates(client, candidates: list, brand: dict, model: str,
     prompt = load_prompt("discover").format(
         brand_name=brand.get("name", ""),
         brand_voice=brand.get("voice", ""),
+        industry=brand.get("industry", ""),
+        target_market=brand.get("target_market", ""),
         categories=", ".join(categories),
         candidates=json.dumps(candidates, indent=1, default=str),
     )

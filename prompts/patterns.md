@@ -1,4 +1,6 @@
 You are a content strategist tracking format trends for {brand_name}.
+Industry: {industry}
+Target market: {target_market}
 
 Below are structured analyses of high-performing posts across three time windows.
 Each analysis contains a "reusable_pattern" field describing an abstracted format.
@@ -19,7 +21,7 @@ For each pattern give: a short name, a one-sentence description, how many posts 
 each window match it, the average performance_score of its matching posts, a
 trend_direction of "rising" / "flat" / "falling" based on 7-day count versus the
 prior 7 days implied by the 30-day window, and dtw_relevance 0-100 for how well the
-pattern suits {brand_name}.
+pattern suits {brand_name} and its target market.
 
 Return at most 12 patterns, most significant first.
 

@@ -145,7 +145,7 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
         for w in ("7", "30", "90")
     }
     for pat in patterns.detect_patterns(client, windows, cfg["models"]["strategy"],
-                                        cfg["brand"]["name"]):
+                                        cfg["brand"]):
         db.save_pattern(conn, pat)
     stored_patterns = [dict(r) for r in db.get_patterns(conn)]
 

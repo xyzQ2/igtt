@@ -72,6 +72,8 @@ def analyze_text(client, post: dict, brand: dict, model: str):
     prompt = load_prompt("analyze_text").format(
         brand_name=brand.get("name", ""),
         brand_voice=brand.get("voice", ""),
+        industry=brand.get("industry", ""),
+        target_market=brand.get("target_market", ""),
         post_json=json.dumps(payload, indent=2, default=str),
     )
 

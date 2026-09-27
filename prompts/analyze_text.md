@@ -2,6 +2,8 @@ Analyze this social-media post as a content strategist.
 
 Target brand: {brand_name}
 Brand voice: {brand_voice}
+Industry: {industry}
+Target market: {target_market}
 
 Do not copy the content. Extract reusable structure only.
 
