@@ -49,7 +49,7 @@ counts, write the test that distinguishes a measured zero from an unmeasured val
 Two truthiness guards are deliberate and carry comments saying so: `engagement_rate`'s
 `if views` and `vs_baseline`'s `and baseline` — division by zero is undefined, not missing.
 
-**Cost ceilings are enforced by truncation in code, not by trust.** 75 accounts, 7-day
+**Cost ceilings are enforced by truncation in code, not by trust.** 75 accounts, 30-day
 lookback, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day,
 1 post/day. All live in `config.yaml`; each has a call site that actually slices. If you
 add a ceiling, enforce it — `posting.max_per_day` sat unenforced for a whole build while

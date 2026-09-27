@@ -43,7 +43,7 @@ rather than growing without limit.
 
 ## 2. Measuring likes and engagement
 
-Daily (`app.py`, 11:00 UTC), Apify pulls the last `monitoring.posts_lookback_days` (7) days
+Daily (`app.py`, 11:00 UTC), Apify pulls the last `monitoring.posts_lookback_days` (30) days
 of posts from every active account, up to `results_per_account` (20) each.
 
 Each post is stored, and a **snapshot** of its counts is appended every run. That history is
