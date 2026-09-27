@@ -18,11 +18,11 @@ discover.py (weekly)      app.py (daily)                     post.py (on dispatc
 hashtag search        →   Apify: recent posts, tracked accts
 Claude scores 0-100       → sqlite: posts + snapshots
 ≥60 keep / <50 drop       → numeric rank (all posts, free)
-                          → Claude text tier   (top 40)
+                          → Claude text tier   (top 40, caption + cover image)
                           → Gemini video tier  (top 15)
                           → pattern clustering (7/30/90d)
-                          → 10 DTW briefs
-                          → reports/latest.html + email
+                          → 10 briefs for the brand
+                          → reports/latest.html + email (SMTP_* secrets)
                                ↓ operator picks one
                                             GH Actions dispatch
                                             → IG Graph API → mark posted
@@ -95,6 +95,20 @@ mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-a
   `ownerFollowersCount`; follower counts come only from the `details` call
   (`fetch_follower_counts`). Items without `shortCode` are per-profile errors and are
   logged, not silently dropped. An auth failure returns a dict, not a list — guard it.
+- **Never send `onlyPostsNewerThan` to the profile scraper.** With it, 8 of 14 profiles
+  came back `no_items "Empty or private data"` — an old pinned post stops the actor before
+  the recent posts. `fetch_profile_posts` filters by `posted_at` in code instead; after the
+  fix every account returned items. `Restricted profile` is different: age-restricted
+  accounts need a logged-in scraper — drop them.
+- **Cover images go to Claude as base64**, downloaded only from Instagram's CDN over https
+  (`_trusted_https`, shared with the video tier). Any download failure falls back to
+  text-only; conftest blocks `requests.get` so tests never fetch media.
+- **Hashtag discovery saturates.** 200 vs 600 sample posts both yielded ~65 distinct
+  accounts, mostly tiny or off-target. Broad tags (`ootd`, `moda`) return shops. Operator
+  seed handles beat hashtags; discovery logs the top 25 scores so near misses are visible.
+- **Report delivery is email, not a public page.** Publishing `reports/latest.html` via
+  GitHub Pages was blocked as a data leak — do not retry. An unset `SMTP_PORT` secret
+  arrives as `""`, hence `or 587`.
 - **Green runs hide empty pipelines.** Every stage catches and logs, so a run with 0
   accounts, 0 videos or no patterns still exits 0. After any change, read the
   `daily run complete` / `discovery complete` stats line, not the run status.
