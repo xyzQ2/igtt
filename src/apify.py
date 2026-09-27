@@ -81,7 +81,8 @@ def fetch_profile_posts(token: str, usernames: list[str], lookback_days: int,
         return []
 
 
-HASHTAG_LIMIT_PER_TAG = 50
+HASHTAG_ACTOR_URL = ("https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/"
+                     "run-sync-get-dataset-items")
 
 
 def search_hashtag_accounts(token: str, hashtags: list, limit: int) -> list:
@@ -89,19 +90,22 @@ def search_hashtag_accounts(token: str, hashtags: list, limit: int) -> list:
     if not hashtags:
         return []
 
+    # The general scraper's `search` field takes ONE query, so joining the tags
+    # searched for a hashtag that doesn't exist and returned nothing. The hashtag
+    # actor takes the list, and resultsLimit is per tag.
     body = {
-        "search": hashtags[0] if len(hashtags) == 1 else " ".join(hashtags),
-        "searchType": "hashtag",
-        "searchLimit": len(hashtags),
+        "hashtags": hashtags,
         "resultsType": "posts",
-        "resultsLimit": limit,
-        "addParentData": False,
+        "resultsLimit": max(1, limit // len(hashtags)),
     }
     try:
-        resp = requests.post(ACTOR_URL, headers={"Authorization": f"Bearer {token}"},
+        resp = requests.post(HASHTAG_ACTOR_URL,
+                             headers={"Authorization": f"Bearer {token}"},
                              json=body, timeout=TIMEOUT)
         resp.raise_for_status()
         items = resp.json()
+        if not isinstance(items, list):
+            raise ValueError(f"expected a list of posts, got {type(items).__name__}")
     except Exception as exc:
         logger.error("apify hashtag search failed: %s", exc)
         return []

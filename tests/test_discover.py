@@ -45,6 +45,24 @@ def test_search_hashtag_accounts_empty_on_failure(mocker):
     assert apify.search_hashtag_accounts("tok", ["x"], 50) == []
 
 
+def test_search_hashtag_accounts_sends_tags_as_a_list(mocker):
+    """Joining the tags into one `search` string matched no hashtag and found
+    0 accounts in production for weeks."""
+    m = mocker.patch("src.apify.requests.post")
+    m.return_value.json.return_value = []
+    apify.search_hashtag_accounts("tok", ["winememes", "serverlife"], limit=200)
+    url, body = m.call_args.args[0], m.call_args.kwargs["json"]
+    assert "instagram-hashtag-scraper" in url
+    assert body["hashtags"] == ["winememes", "serverlife"]
+    assert body["resultsLimit"] == 100  # per tag
+
+
+def test_search_hashtag_accounts_empty_on_error_payload(mocker):
+    m = mocker.patch("src.apify.requests.post")
+    m.return_value.json.return_value = {"error": {"type": "user-or-token-not-found"}}
+    assert apify.search_hashtag_accounts("tok", ["x"], 50) == []
+
+
 def test_score_candidates_attaches_scores(mocker):
     client = mocker.Mock()
     client.messages.create.return_value = fake_response(json.dumps([
