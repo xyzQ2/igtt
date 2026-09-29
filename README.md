@@ -55,7 +55,7 @@ unfetchable URL fails inside the media container with an opaque error.
 
 ## Scheduling
 
-GitHub Actions runs `daily.yml` Mondays and Thursdays at 11:00 UTC and `discover.yml` Mondays at 10:00 UTC.
+GitHub Actions runs `daily.yml` Mondays and Thursdays at 11:00 UTC; `discover.yml` runs only on manual dispatch (Apify free-tier budget).
 Both commit `data/intelligence.db` back to the repository — that is how state survives
 between runs, since Actions has no persistent disk.
 

@@ -9,7 +9,7 @@ Every number below lives in `config.yaml`, which is the only file you need to ed
 
 ## 1. Finding comparable accounts
 
-Two ways in, both weekly (`discover.py`, Mondays 10:00 UTC).
+Two ways in, both via `discover.py`, run by manual dispatch only (the weekly schedule was dropped to keep Apify in its free tier).
 
 **Hashtag search.** Apify searches the hashtags in `discovery.hashtags` — currently
 `fashionmodel`, `femalemodel`, `modellife`, `editorialmodel`, `instamodel`, `latinamodel`,
@@ -44,7 +44,7 @@ rather than growing without limit.
 ## 2. Measuring likes and engagement
 
 Twice weekly (`app.py`, Mondays and Thursdays 11:00 UTC), Apify pulls the last `monitoring.posts_lookback_days` (30) days
-of posts from every active account, up to `results_per_account` (20) each.
+of posts from every active account, up to `results_per_account` (8) each.
 
 Each post is stored, and a **snapshot** of its counts is appended every run. That history is
 what makes velocity possible — a post is measured repeatedly, not once.

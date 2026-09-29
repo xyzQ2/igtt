@@ -15,7 +15,8 @@ monitoring:
   max_accounts: 75
   # Models post every few days, not daily; 7 kept 9 of 80 scraped posts.
   posts_lookback_days: 30
-  results_per_account: 20
+  # 8 keeps Apify inside its free $5/month; models post every few days.
+  results_per_account: 8
   candidate_posts_for_text_ai: 40
   # 0 turns the Gemini video tier off. Set back to 15 to re-enable.
   candidate_posts_for_video_ai: 0

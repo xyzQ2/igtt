@@ -1,8 +1,7 @@
 name: Weekly account discovery
 
 on:
-  schedule:
-    - cron: '0 10 * * 1'   # Mondays 10:00 UTC, before that day's daily run
+  # Manual only: the weekly hashtag scrape pushed Apify past its free $5/month.
   workflow_dispatch:
 
 permissions:
