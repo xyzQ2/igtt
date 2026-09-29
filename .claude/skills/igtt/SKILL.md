@@ -14,7 +14,7 @@ the published results perform.
 ## The pipeline
 
 ```
-discover.py (weekly)      app.py (daily)                     post.py (on dispatch)
+discover.py (manual)      app.py (Mon+Thu)                   post.py (on dispatch)
 hashtag search        →   Apify: recent posts, tracked accts
 Claude scores 0-100       → sqlite: posts + snapshots
 ≥60 keep / <50 drop       → numeric rank (all posts, free)
@@ -50,10 +50,17 @@ Two truthiness guards are deliberate and carry comments saying so: `engagement_r
 `if views` and `vs_baseline`'s `and baseline` — division by zero is undefined, not missing.
 
 **Cost ceilings are enforced by truncation in code, not by trust.** 75 accounts, 30-day
-lookback, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day,
+lookback, 8 posts/account, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day,
 1 post/day. All live in `config.yaml`; each has a call site that actually slices. If you
 add a ceiling, enforce it — `posting.max_per_day` sat unenforced for a whole build while
 the README claimed otherwise.
+
+**Apify is on its free $5/month credit and the user will not pay.** That is why
+`results_per_account` is 8 (was 20) and `discover.yml` is manual-dispatch only (the weekly
+hashtag scrape alone cost ~$2–4/month). Budget: ~16 accounts × 8 posts + 16 `details` items
+× ~9 runs/month ≈ $3–3.50. Anything that adds scraped items — more accounts, a higher
+`results_per_account`, a discovery cron, more run days — must be priced against that $5
+first. When the credit runs out, runs abort inside Apify and still exit green with 0 posts.
 
 **Publish guardrails.** `post.py` refuses on: unknown id, already posted, HIGH
 `similarity_risk`, no `media_url`, a `media_url` that fails a HEAD check, missing
