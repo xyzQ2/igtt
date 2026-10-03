@@ -60,7 +60,8 @@ the README claimed otherwise.
 hashtag scrape alone cost ~$2–4/month). Budget: ~16 accounts × 8 posts + 16 `details` items
 × ~9 runs/month ≈ $3–3.50. Anything that adds scraped items — more accounts, a higher
 `results_per_account`, a discovery cron, more run days — must be priced against that $5
-first. When the credit runs out, runs abort inside Apify and still exit green with 0 posts.
+first. When the credit runs out, Apify returns 402 and the run collects 0 posts; `app.py` then
+skips every Claude call and exits 1, so the run shows red.
 
 **Publish guardrails.** `post.py` refuses on: unknown id, already posted, HIGH
 `similarity_risk`, no `media_url`, a `media_url` that fails a HEAD check, missing

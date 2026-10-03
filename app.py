@@ -62,6 +62,12 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     )
     stats["posts"] = len(raw_posts)
     logger.info("collected %d posts from %d accounts", len(raw_posts), len(accounts))
+    if not raw_posts:
+        # 0 posts across every account means Apify failed (credit out, auth) —
+        # skip the paid Claude calls; main() exits 1 so the run shows red.
+        logger.error("collected 0 posts — skipping analysis, patterns, ideas, report")
+        conn.close()
+        return stats
 
     # 2. Store and snapshot ----------------------------------------------
     posts = []
@@ -254,7 +260,8 @@ def main() -> None:
     parser.add_argument("--db", default="data/intelligence.db")
     parser.add_argument("--report", default="reports/latest.html")
     args = parser.parse_args()
-    run_daily(args.config, args.db, args.report)
+    if not run_daily(args.config, args.db, args.report)["posts"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -92,7 +92,7 @@ def test_daily_run_end_to_end(tmp_path, cfg_file, mocker, monkeypatch):
     conn.close()
 
 
-def test_daily_run_survives_total_apify_failure(tmp_path, cfg_file, mocker, monkeypatch):
+def test_total_apify_failure_skips_claude_and_fails(tmp_path, cfg_file, mocker, monkeypatch):
     monkeypatch.setenv("APIFY_TOKEN", "t")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "t")
     db_path = str(tmp_path / "test.db")
@@ -102,13 +102,20 @@ def test_daily_run_survives_total_apify_failure(tmp_path, cfg_file, mocker, monk
     conn.close()
 
     mocker.patch("app.apify.fetch_profile_posts", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    anthropic = mocker.patch("app.Anthropic")
     report_path = tmp_path / "latest.html"
 
     stats = app.run_daily(config_path=cfg_file, db_path=db_path,
                           report_path=str(report_path))
     assert stats["posts"] == 0
-    assert report_path.exists(), "an empty day still produces a report"
+    assert not anthropic.called, "no paid Claude calls on an empty day"
+    assert not report_path.exists()
+
+    mocker.patch("sys.argv", ["app.py", "--config", cfg_file, "--db", db_path,
+                              "--report", str(report_path)])
+    with pytest.raises(SystemExit) as exc:
+        app.main()
+    assert exc.value.code == 1, "an empty day must turn the run red"
 
 
 def test_ai_limits_are_enforced(tmp_path, cfg_file, mocker, monkeypatch):
