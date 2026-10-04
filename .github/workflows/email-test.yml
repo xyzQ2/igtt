@@ -1,0 +1,34 @@
+name: Email test
+
+# Manual only. Sends one test email through report.send_email to SMTP_USER
+# (the sender inbox, not SMTP_TO, so the tester is never spammed). Red = SMTP broken.
+on:
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install jinja2
+      - name: Send test email
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          python - <<'EOF'
+          import logging, os, sys
+          from src import report
+          logging.basicConfig(level=logging.INFO)
+          cfg = {"enabled": True, "host": os.environ["SMTP_HOST"],
+                 "port": os.environ.get("SMTP_PORT") or 587,
+                 "user": os.environ["SMTP_USER"], "password": os.environ["SMTP_PASSWORD"],
+                 "to": os.environ["SMTP_USER"]}
+          sys.exit(0 if report.send_email("<p>igtt SMTP test — delivery works.</p>",
+                                          "igtt email test", cfg) else 1)
+          EOF
