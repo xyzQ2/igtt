@@ -9,7 +9,8 @@ Daily Instagram content intelligence, currently for [@jaquelinebycie](https://ww
 (female fashion model, North and South America; previously @drinktoiletwine, whose wine
 accounts are deactivated in the DB, not deleted). Finds high-performing posts in the niche, works out why they
 worked, abstracts each into a reusable format, generates original briefs, and measures how
-the published results perform.
+the operator's own posts perform — suggested vs other. Since 2026-10-12 it is brand- and
+provider-agnostic; Toilet Wine runs its own local copy (see *Shipping the local copy*).
 
 ## The pipeline
 
@@ -63,10 +64,10 @@ Two truthiness guards are deliberate and carry comments saying so: `engagement_r
 `if views` and `vs_baseline`'s `and baseline` — division by zero is undefined, not missing.
 
 **Cost ceilings are enforced by truncation in code, not by trust.** 75 accounts, 30-day
-lookback, 8 posts/account, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day,
-1 post/day. All live in `config.yaml`; each has a call site that actually slices. If you
-add a ceiling, enforce it — `posting.max_per_day` sat unenforced for a whole build while
-the README claimed otherwise.
+lookback, 8 posts/account, 40 text analyses/day, 0 video analyses/day (off; 15 when on), 25 top posts, 10 ideas/day.
+All live in `config.yaml`; each has a call site that actually slices. If you add a ceiling,
+enforce it — the old `posting.max_per_day` sat unenforced for a whole build while the README
+claimed otherwise. The Settings page clamps every number it exposes (`serve.NUMBERS`).
 
 **Apify is on its free $5/month credit and the user will not pay.** That is why
 `results_per_account` is 8 (was 20) and `discover.yml` is manual-dispatch only (the weekly
@@ -94,9 +95,9 @@ at most one idea) and `None` unlinks. Nothing guesses which idea a post came fro
 - **No schema migrations.** `init_schema` is `CREATE TABLE IF NOT EXISTS` with no
   `ALTER TABLE` anywhere. Adding a column means an existing `data/intelligence.db` breaks;
   delete it and let it rebuild.
-- **State lives in git.** Both workflows commit `data/intelligence.db` back, because
-  Actions has no persistent disk and the 30/90-day windows need the history. daily, discover and link
-  workflows share `concurrency: group: igtt-db` — a workflow that writes the DB without
+- **State lives in git (Actions setup).** The daily, discover and link workflows commit
+  `data/intelligence.db` back, because Actions has no persistent disk and the 30/90-day
+  windows need the history. All three share `concurrency: group: igtt-db` — a workflow that writes the DB without
   it will silently overwrite a day of history, since git cannot merge SQLite.
 
 - **Thinking models eat `max_tokens`.** Sonnet 5 and Opus 5 think by default and
@@ -129,6 +130,20 @@ at most one idea) and `None` unlinks. Nothing guesses which idea a post came fro
 - **Green runs hide empty pipelines.** Every stage catches and logs, so a run with 0
   accounts, 0 videos or no patterns still exits 0. After any change, read the
   `daily run complete` / `discovery complete` stats line, not the run status.
+- **Meta tokens come in two kinds.** Business Discovery and insights need a Facebook-Login
+  Page token on graph.facebook.com. The old `IG_ACCESS_TOKEN` secret in xyzQ2/igtt is an
+  Instagram-Login token (graph.instagram.com) from the publishing era — it will NOT work with
+  `monitoring.source: meta`. Business Discovery returns 400 per account for personal/private
+  accounts; `fetch_profile_posts` logs and skips them.
+- **The dashboard is rebuilt from the DB, never from run memory.** `dashboard.build_context`
+  re-scores posts with `score.score_posts`, so a `mocker.spy` on `score_posts` in app tests
+  sees two calls — assert on `call_args_list[0]`. New tables (like `runs`) are fine without
+  migrations; new columns are not.
+- **Our own engagement baseline needs 3 other measured posts.** Below that `vs_normal` is
+  None and the tiles show "—". That is correct, not a bug.
+- **Tests block every network boundary.** conftest refuses `src.apify.requests.post`,
+  `src.meta.requests.get`, `src.llm.requests.post` and media downloads. A new HTTP call site
+  needs a matching block.
 - **Discovery excludes our own account and damps noise.** `brand.instagram` is never
   scored (app.py always collects it). An active account's new relevance score is averaged
   with its stored one, because the same account scored 88 then 45 minutes apart.
@@ -160,8 +175,27 @@ python discover.py               re-evaluate the account pool
 python serve.py                  local dashboard + settings
 python link.py <idea_id> <url>   mark which idea a post came from
 python seed_accounts.py          load seeds.txt
-.venv/bin/python -m pytest tests/ -q
+python3 -m pytest tests/ -q
 ```
+
+## Shipping the local copy
+
+Toilet Wine (@drinktoiletwine, non-technical, Mac) runs a standalone snapshot at
+`~/Downloads/Toilet Wine Instagram Analyzer`: `app.py serve.py seed_accounts.py src/
+prompts/ Install.command Start.command "START HERE.html"`, plus its own `config.yaml`
+(wine brand, `source: meta`), wine `seeds.txt`, and `requirements.txt` without pytest. No
+tests, workflows, discover.py or link.py. After changing any of those files, re-sync:
+
+```
+rsync -a --exclude __pycache__ app.py serve.py seed_accounts.py src prompts \
+  Install.command Start.command "START HERE.html" "$HOME/Downloads/Toilet Wine Instagram Analyzer/"
+```
+
+Never copy `config.yaml`, `seeds.txt`, `.env` or `data/` over it. `Install.command` is
+re-runnable and never overwrites the installed `config.yaml`, `.env`, `data/` or `logs/`.
+It installs to `~/Instagram Analyzer`, because macOS blocks launchd jobs from reading
+Downloads, Desktop and Documents. Test the installer with a fake `HOME` and stubbed
+`launchctl`/`open` on PATH, never against the real home.
 
 Tests never touch the network — Apify, Meta, Anthropic, OpenAI and Gemini are all mocked at
 their boundary, and fixtures live in `tests/fixtures/`.
