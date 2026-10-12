@@ -49,6 +49,9 @@
 <main>
 {# Colour follows the printed value, so a 0.98 shown as "1.0×" is not red. #}
 {% macro x(v) %}{% if v is none %}—{% else %}<span class="{{ 'up' if v|round(1) >= 1 else 'down' }}">{{ "%.1f"|format(v) }}×</span>{% endif %}{% endmacro %}
+{# A group multiple below min_sample is blank, with the count still shown. #}
+{% macro xn(v, n) %}{% if v is none %}<span class="muted" title="Needs at least {{ min_sample }} measured posts">—</span>{% else %}{{ x(v) }}{% endif %} <small class="muted">n={{ n }}</small>{% endmacro %}
+{% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% macro num(v) %}{{ "{:,.0f}".format(v) if v is not none else "—" }}{% endmacro %}
 
 <h1>{{ brand.name }} Dashboard</h1>
@@ -74,10 +77,13 @@
 <div class="tiles">
   <div class="tile"><b>{{ overall.posts }}</b><span class="muted">your posts</span></div>
   <div class="tile"><b>{{ overall.suggested }}</b><span class="muted">made from suggested ideas</span></div>
-  <div class="tile"><b>{{ x(overall.suggested_vs_normal) }}</b><span class="muted">suggested posts vs your normal engagement</span></div>
-  <div class="tile"><b>{{ x(overall.other_vs_normal) }}</b><span class="muted">your other posts vs normal</span></div>
+  <div class="tile"><b>{{ xn(overall.suggested_vs_normal, overall.suggested_n) }}</b><span class="muted">suggested posts vs your normal engagement</span></div>
+  <div class="tile"><b>{{ xn(overall.other_vs_normal, overall.other_n) }}</b><span class="muted">your other posts vs normal</span></div>
+  <div class="tile"><b>{{ pct(overall.er) }}</b><span class="muted">your engagement rate (by followers)</span></div>
 </div>
-<p class="muted">"Normal" = the median likes + comments + shares of your other posts. Above 1.0× beats your usual.</p>
+<p class="muted">"Normal" = the median likes + comments + shares of your other posts; above 1.0× beats your usual.
+An average multiple needs at least {{ min_sample }} measured posts (n = how many there are) — fewer is noise.
+Engagement rate = (likes + comments + shares) ÷ followers, the figure industry benchmarks quote; hidden likes count as unknown, so it reads low for accounts that hide them.</p>
 
 <h2>Daily — your engagement, last 14 days</h2>
 <div class="chart" role="img" aria-label="Average engagement per post by day, last 14 days">
@@ -92,8 +98,8 @@
   <tr><th>Day</th><th>Posts</th><th>From ideas</th><th>Avg engagement</th><th>Suggested vs normal</th><th>Other vs normal</th></tr>
   {% for d in daily|reverse %}{% if d.posts %}
   <tr><td>{{ d.label }}</td><td class="n">{{ d.posts }}</td><td class="n">{{ d.suggested }}</td>
-      <td class="n">{{ num(d.engagement) }}</td><td class="n">{{ x(d.suggested_vs_normal) }}</td>
-      <td class="n">{{ x(d.other_vs_normal) }}</td></tr>
+      <td class="n">{{ num(d.engagement) }}</td><td class="n">{{ xn(d.suggested_vs_normal, d.suggested_n) }}</td>
+      <td class="n">{{ xn(d.other_vs_normal, d.other_n) }}</td></tr>
   {% endif %}{% endfor %}
   {% if not daily|selectattr("posts")|list %}
   <tr><td colspan="6" class="muted">No posts of yours in the last 14 days.</td></tr>
@@ -105,20 +111,20 @@
   <tr><th>Week</th><th>Posts</th><th>From ideas</th><th>Avg engagement</th><th>Suggested vs normal</th><th>Other vs normal</th></tr>
   {% for w in weekly|reverse %}
   <tr><td>{{ w.label }}</td><td class="n">{{ w.posts }}</td><td class="n">{{ w.suggested }}</td>
-      <td class="n">{{ num(w.engagement) }}</td><td class="n">{{ x(w.suggested_vs_normal) }}</td>
-      <td class="n">{{ x(w.other_vs_normal) }}</td></tr>
+      <td class="n">{{ num(w.engagement) }}</td><td class="n">{{ xn(w.suggested_vs_normal, w.suggested_n) }}</td>
+      <td class="n">{{ xn(w.other_vs_normal, w.other_n) }}</td></tr>
   {% endfor %}
 </table></div>
 
 <h2>Your last {{ [ours|length, 10]|min }} posts</h2>
 {% if interactive %}<p class="muted">Posted one of the suggested ideas? Pick it next to the post so it counts as "suggested".</p>{% endif %}
 <div class="wrap"><table>
-  <tr><th>Date</th><th>Post</th><th>Views</th><th>Likes</th><th>Comments</th><th>vs normal</th><th>From idea</th></tr>
+  <tr><th>Date</th><th>Post</th><th>Views</th><th>Likes</th><th>Comments</th><th>Eng. rate</th><th>vs normal</th><th>From idea</th></tr>
   {% for p in ours[:10] %}
   <tr><td>{{ p.day or "" }}</td>
       <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
       <td class="n">{{ num(p.views) }}</td><td class="n">{{ num(p.likes) }}</td><td class="n">{{ num(p.comments) }}</td>
-      <td class="n">{{ x(p.vs_normal) }}</td>
+      <td class="n">{{ pct(p.er) }}</td><td class="n">{{ x(p.vs_normal) }}</td>
       <td>{% if interactive %}
         <form method="post" action="/link" style="margin:0">
           <input type="hidden" name="shortcode" value="{{ p.shortcode }}">
@@ -129,21 +135,21 @@
         </form>
       {% elif p.idea %}#{{ p.idea.id }} {{ p.idea.brief.concept }}{% else %}—{% endif %}</td></tr>
   {% else %}
-  <tr><td colspan="7" class="muted">None of your posts collected yet.</td></tr>
+  <tr><td colspan="8" class="muted">None of your posts collected yet.</td></tr>
   {% endfor %}
 </table></div>
 
 <h2>Top 10 posts in your niche</h2>
 <div class="wrap"><table>
-  <tr><th>#</th><th>Account</th><th>Post</th><th>Score</th><th>Views</th><th>Likes</th><th>Comments</th><th>Why it works</th></tr>
+  <tr><th>#</th><th>Account</th><th>Post</th><th>Score</th><th>Views</th><th>Likes</th><th>Comments</th><th>Eng. rate</th><th>Why it works</th></tr>
   {% for p in top_posts %}
   <tr><td class="n">{{ loop.index }}</td><td>@{{ p.username }}</td>
       <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
       <td class="n">{{ "%.0f"|format(p.final_score) }}</td><td class="n">{{ num(p.views) }}</td>
       <td class="n">{{ num(p.likes) }}</td><td class="n">{{ num(p.comments) }}</td>
-      <td class="muted">{{ p.analysis.reusable_pattern if p.analysis else "" }}</td></tr>
+      <td class="n">{{ pct(p.er) }}</td><td class="muted">{{ p.analysis.reusable_pattern if p.analysis else "" }}</td></tr>
   {% else %}
-  <tr><td colspan="8" class="muted">No posts collected yet.</td></tr>
+  <tr><td colspan="9" class="muted">No posts collected yet.</td></tr>
   {% endfor %}
 </table></div>
 

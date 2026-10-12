@@ -5,6 +5,7 @@ the AI spend bounded.
 """
 
 import logging
+from bisect import bisect_left, bisect_right
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -30,19 +31,26 @@ WEIGHT_KEY_FOR = {
 
 
 def percentile_ranks(values: list) -> list:
-    """Rank values 0-100 by position. None in, None out.
+    """Rank values 0-100 by position among the present values. None in, None out.
+
+    By position, not by distance: min-max scaling let one viral post squash
+    every other post to ~0. Ties share the average of their positions.
 
     None means the platform does not report that metric for that post type.
     Ranking it as a low value would penalise carousels for not being videos.
     """
-    present = [v for v in values if v is not None]
-    if not present:
+    present = sorted(v for v in values if v is not None)
+    n = len(present)
+    if n == 0:
         return [None] * len(values)
-    lo, hi = min(present), max(present)
-    if hi == lo:
+    if n == 1:
         return [None if v is None else 50.0 for v in values]
-    span = hi - lo
-    return [None if v is None else (v - lo) / span * 100.0 for v in values]
+
+    def rank(v):
+        first, last = bisect_left(present, v), bisect_right(present, v) - 1
+        return (first + last) / 2 / (n - 1) * 100.0
+
+    return [None if v is None else rank(v) for v in values]
 
 
 def count(v):

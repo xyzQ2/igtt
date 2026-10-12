@@ -34,21 +34,37 @@ def add(conn, username, code, likes, days_ago=1, ours=False, snaps=None):
 
 
 def test_suggested_posts_are_measured_against_our_normal(conn):
-    for i, likes in enumerate([100, 100, 100]):
-        add(conn, "me", f"N{i}", likes, ours=True)
-    add(conn, "me", "HIT", 300, ours=True)
-    idea = db.save_idea(conn, {"concept": "c", "hook": "h"}, None, "LOW", 80)
-    db.link_idea(conn, idea, "HIT")
+    for i in range(5):
+        add(conn, "me", f"N{i}", 100, ours=True)
+    ideas = [db.save_idea(conn, {"concept": "c", "hook": "h"}, None, "LOW", 80)
+             for _ in range(5)]
+    for i, idea in enumerate(ideas):
+        add(conn, "me", f"HIT{i}", 300, ours=True)
+        db.link_idea(conn, idea, f"HIT{i}")
 
     ctx = dashboard.build_context(conn, CFG)
 
-    hit = next(p for p in ctx["ours"] if p["shortcode"] == "HIT")
+    hit = next(p for p in ctx["ours"] if p["shortcode"] == "HIT0")
+    # normal = median of the 9 other posts (4 others at 300, 5 at 100) = 100
     assert hit["vs_normal"] == 3.0
-    assert ctx["overall"]["suggested"] == 1
+    assert hit["er"] == 0.3, "300 engagement / 1000 followers"
+    assert ctx["overall"]["suggested"] == 5
     assert ctx["overall"]["suggested_vs_normal"] == 3.0
+    assert ctx["overall"]["suggested_n"] == 5
     yesterday = next(d for d in ctx["daily"] if d["posts"])
-    assert yesterday["posts"] == 4 and yesterday["suggested"] == 1
-    assert sum(w["posts"] for w in ctx["weekly"]) == 4
+    assert yesterday["posts"] == 10 and yesterday["suggested"] == 5
+    assert sum(w["posts"] for w in ctx["weekly"]) == 10
+
+
+def test_group_multiple_is_blank_below_min_sample_but_counted(conn):
+    for i in range(3):
+        add(conn, "me", f"N{i}", 100, ours=True)
+    add(conn, "me", "HIT", 300, ours=True)
+    db.link_idea(conn, db.save_idea(conn, {"concept": "c", "hook": "h"}, None, "LOW", 80), "HIT")
+    ctx = dashboard.build_context(conn, CFG)
+    assert ctx["overall"]["suggested_vs_normal"] is None, "one post is not evidence"
+    assert ctx["overall"]["suggested_n"] == 1
+    assert "n=1" in dashboard.render(ctx)
 
 
 def test_unmeasured_post_is_none_not_zero(conn):

@@ -14,6 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from src import db, score
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+MIN_SAMPLE = 5  # fewer posts than this and an average multiple is noise, not evidence
 SHOW = 10  # rows per dashboard list; the daily report keeps monitoring.daily_top_posts
 
 
@@ -58,6 +59,9 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
                                    ("views", "likes", "comments", "shares")},
                      "engagement": engagement(latest) if latest else None,
                      "traction": _traction(snaps), "analysis": analyses.get(r["id"]),
+                     # The benchmark-comparable figure: (likes + comments + shares) / followers.
+                     "er": score.post_metrics({**latest, "owner_followers": r["owner_followers"]})
+                     ["engagement_per_follower"] if latest else None,
                      "day": _day(r["posted_at"])})
 
     window_start = today - timedelta(days=mon["posts_lookback_days"])
@@ -87,13 +91,22 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
                           if p["engagement"] is not None and base else None)
         p["idea"] = idea_by_code.get(p["shortcode"])
 
+    def multiple(posts):
+        """Average multiple of normal and how many measured posts it rests on.
+        The multiple is None below MIN_SAMPLE — the count is still shown."""
+        vals = [p["vs_normal"] for p in posts if p["vs_normal"] is not None]
+        return (_avg(vals) if len(vals) >= MIN_SAMPLE else None), len(vals)
+
     def summary(posts):
         sug = [p for p in posts if p["idea"]]
         other = [p for p in posts if not p["idea"]]
+        sug_x, sug_n = multiple(sug)
+        other_x, other_n = multiple(other)
         return {"posts": len(posts), "suggested": len(sug),
                 "engagement": _avg(p["engagement"] for p in posts),
-                "suggested_vs_normal": _avg(p["vs_normal"] for p in sug),
-                "other_vs_normal": _avg(p["vs_normal"] for p in other)}
+                "er": _avg(p["er"] for p in posts),
+                "suggested_vs_normal": sug_x, "suggested_n": sug_n,
+                "other_vs_normal": other_x, "other_n": other_n}
 
     daily = []
     for n in range(13, -1, -1):
@@ -116,7 +129,7 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
         "top_posts": ranked[:SHOW], "rising": rising,
         "ours": ours, "daily": daily, "weekly": weekly, "peak": peak or 1,
         "overall": summary([p for p in ours if p["day"] and p["day"] >= today - timedelta(30)]),
-        "ideas": ideas[: cfg["ideas"]["daily_count"] * 3],
+        "ideas": ideas[: cfg["ideas"]["daily_count"] * 3], "min_sample": MIN_SAMPLE,
     }
 
 
