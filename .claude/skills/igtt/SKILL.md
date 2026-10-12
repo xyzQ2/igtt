@@ -139,6 +139,12 @@ at most one idea) and `None` unlinks. Nothing guesses which idea a post came fro
   re-scores posts with `score.score_posts`, so a `mocker.spy` on `score_posts` in app tests
   sees two calls — assert on `call_args_list[0]`. New tables (like `runs`) are fine without
   migrations; new columns are not.
+- **Apify reports `likesCount: -1` when the owner hides likes** (@jaquelinebycie does).
+  `score.count()` maps negatives to None in `normalize_post` and again in `post_metrics`,
+  because the DB already holds -1 rows. Any new aggregation of stored counts goes through it.
+- **`is_ours` outlives a brand change.** The DB still holds @drinktoiletwine posts flagged
+  ours. Own-post queries filter by `brand.instagram` (`get_our_posts(handle=)`, dashboard),
+  and the dashboard ranks only `active = 1` accounts, as collection does.
 - **Our own engagement baseline needs 3 other measured posts.** Below that `vs_normal` is
   None and the tiles show "—". That is correct, not a bug.
 - **Tests block every network boundary.** conftest refuses `src.apify.requests.post`,
