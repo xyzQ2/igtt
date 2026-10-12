@@ -110,11 +110,11 @@
   {% endfor %}
 </table></div>
 
-<h2>Your recent posts</h2>
+<h2>Your last {{ [ours|length, 10]|min }} posts</h2>
 {% if interactive %}<p class="muted">Posted one of the suggested ideas? Pick it next to the post so it counts as "suggested".</p>{% endif %}
 <div class="wrap"><table>
   <tr><th>Date</th><th>Post</th><th>Views</th><th>Likes</th><th>Comments</th><th>vs normal</th><th>From idea</th></tr>
-  {% for p in ours %}
+  {% for p in ours[:10] %}
   <tr><td>{{ p.day or "" }}</td>
       <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
       <td class="n">{{ num(p.views) }}</td><td class="n">{{ num(p.likes) }}</td><td class="n">{{ num(p.comments) }}</td>
@@ -133,7 +133,7 @@
   {% endfor %}
 </table></div>
 
-<h2>Top posts in your niche</h2>
+<h2>Top 10 posts in your niche</h2>
 <div class="wrap"><table>
   <tr><th>#</th><th>Account</th><th>Post</th><th>Score</th><th>Views</th><th>Likes</th><th>Comments</th><th>Why it works</th></tr>
   {% for p in top_posts %}
@@ -159,10 +159,10 @@
   {% endfor %}
 </table></div>
 
-<h2>Recent suggested ideas</h2>
+<h2>Latest 10 suggested ideas</h2>
 <div class="wrap"><table>
   <tr><th>#</th><th>Idea</th><th>Hook</th><th>Status</th></tr>
-  {% for i in ideas %}
+  {% for i in ideas[:10] %}
   <tr><td class="n">{{ i.id }}</td><td>{{ i.brief.concept }}</td><td class="muted">{{ i.brief.hook }}</td>
       <td>{{ "✅ posted" if i.posted_shortcode else "new" }}</td></tr>
   {% endfor %}

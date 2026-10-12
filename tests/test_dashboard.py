@@ -100,3 +100,11 @@ def test_previous_brand_and_inactive_accounts_are_excluded(conn):
     ctx = dashboard.build_context(conn, CFG)
     assert [p["shortcode"] for p in ctx["ours"]] == ["MINE"]
     assert ctx["top_posts"] == []
+
+
+def test_lists_are_capped_at_ten(conn):
+    for i in range(15):
+        add(conn, "rival", f"R{i}", 100 + i, snaps=[i, 100 + i])
+    ctx = dashboard.build_context(conn, {**CFG, "monitoring": {**CFG["monitoring"], "daily_top_posts": 25}})
+    assert len(ctx["top_posts"]) == 10
+    assert len(ctx["rising"]) == 10

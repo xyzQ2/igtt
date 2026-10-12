@@ -14,6 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from src import db, score
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+SHOW = 10  # rows per dashboard list; the daily report keeps monitoring.daily_top_posts
 
 
 def engagement(m: dict):
@@ -69,7 +70,7 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
                                              cfg["scoring"]["ai_weight"])
     ranked.sort(key=lambda p: p["final_score"], reverse=True)
     rising = sorted([p for p in theirs if p["traction"]],
-                    key=lambda p: p["traction"], reverse=True)[:10]
+                    key=lambda p: p["traction"], reverse=True)[:SHOW]
 
     # Our posts, each against the median engagement of our other posts.
     ideas = [dict(i, brief=json.loads(i["brief_json"]))
@@ -112,7 +113,7 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
     return {
         "brand": cfg["brand"], "today": today.isoformat(),
         "last_run": dict(run, stats=json.loads(run["stats"])) if run else None,
-        "top_posts": ranked[: mon["daily_top_posts"]], "rising": rising,
+        "top_posts": ranked[:SHOW], "rising": rising,
         "ours": ours, "daily": daily, "weekly": weekly, "peak": peak or 1,
         "overall": summary([p for p in ours if p["day"] and p["day"] >= today - timedelta(30)]),
         "ideas": ideas[: cfg["ideas"]["daily_count"] * 3],

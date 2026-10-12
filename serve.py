@@ -34,7 +34,7 @@ NUMBERS = [
     ("monitoring", "posts_lookback_days", "Look at posts from the last … days", 1, 90),
     ("monitoring", "results_per_account", "Posts to check per account", 1, 50),
     ("monitoring", "candidate_posts_for_text_ai", "Posts the AI studies each day", 0, 100),
-    ("monitoring", "daily_top_posts", "Top posts to show", 5, 100),
+    ("monitoring", "daily_top_posts", "Top posts in the daily report", 5, 100),
     ("ideas", "daily_count", "New ideas per day", 1, 20),
 ]
 TEXTS = [("brand", "name", "Brand name"), ("brand", "instagram", "Your Instagram handle"),
