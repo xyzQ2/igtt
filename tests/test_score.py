@@ -7,6 +7,16 @@ def test_percentile_ranks_basic():
     assert score.percentile_ranks([10, 20, 30, 40]) == pytest.approx([0.0, 100 / 3, 200 / 3, 100.0])
 
 
+def test_percentile_ranks_are_positional_so_an_outlier_cannot_squash_the_rest():
+    """Min-max scaling put 1, 2, 3 at ~0 next to a viral 1,000,000."""
+    assert score.percentile_ranks([1, 2, 3, 1_000_000]) == pytest.approx(
+        [0.0, 100 / 3, 200 / 3, 100.0])
+
+
+def test_percentile_ranks_ties_share_their_average_position():
+    assert score.percentile_ranks([10, 20, 20, 30]) == pytest.approx([0.0, 50.0, 50.0, 100.0])
+
+
 def test_percentile_ranks_none_passes_through():
     out = score.percentile_ranks([10, None, 30])
     assert out[1] is None, "a missing metric must not be ranked as a low value"

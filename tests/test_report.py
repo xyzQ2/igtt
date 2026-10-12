@@ -35,7 +35,6 @@ CONTEXT = {
         {"shortcode": "OURS1", "views": 12000, "baseline_views": 4000,
          "vs_baseline": 3.0},
     ],
-    "repo_url": "https://github.com/xyzQ2/igtt",
 }
 
 
@@ -65,7 +64,7 @@ def test_render_report_includes_idea_id_for_dispatch(tmp_path):
     report.render_report(CONTEXT, str(out))
     html = out.read_text()
     assert "idea_id" in html or "#1" in html
-    assert "actions/workflows/post.yml" in html
+    assert "Pick idea #1" in html
 
 
 def test_render_report_shows_em_dash_for_unmeasured_our_results(tmp_path):

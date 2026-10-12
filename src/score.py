@@ -5,6 +5,7 @@ the AI spend bounded.
 """
 
 import logging
+from bisect import bisect_left, bisect_right
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ METRIC_KEYS = (
     "total_engagement",
     "raw_views",
     "comments_per_follower",
+    "engagement_per_follower",
 )
 
 # config.yaml names the last weight "comments"; the metric is per-follower.
@@ -24,34 +26,48 @@ WEIGHT_KEY_FOR = {
     "total_engagement": "total_engagement",
     "raw_views": "raw_views",
     "comments_per_follower": "comments",
+    "engagement_per_follower": "engagement_per_follower",
 }
 
 
 def percentile_ranks(values: list) -> list:
-    """Rank values 0-100 by position. None in, None out.
+    """Rank values 0-100 by position among the present values. None in, None out.
+
+    By position, not by distance: min-max scaling let one viral post squash
+    every other post to ~0. Ties share the average of their positions.
 
     None means the platform does not report that metric for that post type.
     Ranking it as a low value would penalise carousels for not being videos.
     """
-    present = [v for v in values if v is not None]
-    if not present:
+    present = sorted(v for v in values if v is not None)
+    n = len(present)
+    if n == 0:
         return [None] * len(values)
-    lo, hi = min(present), max(present)
-    if hi == lo:
+    if n == 1:
         return [None if v is None else 50.0 for v in values]
-    span = hi - lo
-    return [None if v is None else (v - lo) / span * 100.0 for v in values]
+
+    def rank(v):
+        first, last = bisect_left(present, v), bisect_right(present, v) - 1
+        return (first + last) / 2 / (n - 1) * 100.0
+
+    return [None if v is None else rank(v) for v in values]
+
+
+def count(v):
+    """A platform count, or None. Apify reports -1 when an owner hides likes —
+    that is "unknown", never a real number to add up."""
+    return None if v is None or v < 0 else v
 
 
 # Hazard: aggregation. `likes or 0` folds an unmeasured metric into a genuine
 # zero — an unknown count must stay None, never become a measured 0. This is
 # where that rule keeps getting broken; do not "simplify" it back to `or 0`.
 def post_metrics(post: dict) -> dict:
-    """Derive the five ranking metrics for one post. Missing stays None."""
-    views = post.get("views")
-    likes = post.get("likes")
-    comments = post.get("comments")
-    shares = post.get("shares") or 0
+    """Derive the six ranking metrics for one post. Missing stays None."""
+    views = count(post.get("views"))
+    likes = count(post.get("likes"))
+    comments = count(post.get("comments"))
+    shares = count(post.get("shares")) or 0
     followers = post.get("owner_followers") or 0
 
     engagement = (None if (likes is None and comments is None)
@@ -65,6 +81,9 @@ def post_metrics(post: dict) -> dict:
         "raw_views": float(views) if views is not None else None,
         "comments_per_follower": (None if comments is None
                                   else (comments / followers) if followers else None),
+        # The only reach-normalised metric when views are unknown (Meta source).
+        "engagement_per_follower": (None if engagement is None
+                                    else (engagement / followers) if followers else None),
     }
 
 

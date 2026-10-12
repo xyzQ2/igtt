@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 import app
@@ -13,7 +15,9 @@ def conn(tmp_path):
 
 
 def add_post(conn, account_id, shortcode, views, is_ours=0,
-             posted_at="2026-09-05T10:00:00+00:00"):
+             posted_at=None):
+    # Relative, so the 30-day window never ages these posts out.
+    posted_at = posted_at or (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
     pid = db.upsert_post(conn, {
         "shortcode": shortcode, "account_id": account_id, "posted_at": posted_at,
         "is_ours": is_ours, "caption": "c", "url": "u",
@@ -87,3 +91,12 @@ def test_build_our_results_measured_zero_views_is_real_data(conn):
     flop = next(r for r in results if r["shortcode"] == "FLOP")
     assert flop["views"] == 0, "measured zero views is real data, not missing"
     assert flop["vs_baseline"] == 0.0, "zero views vs baseline is 0.0, not None"
+
+
+def test_get_our_posts_filters_to_the_current_handle(conn):
+    """A retargeted DB keeps the previous brand's posts flagged is_ours."""
+    old = db.upsert_account(conn, "drinktoiletwine")
+    new = db.upsert_account(conn, "jaquelinebycie")
+    add_post(conn, old, "WINE", 100, is_ours=1)
+    add_post(conn, new, "MODEL", 100, is_ours=1)
+    assert [r["shortcode"] for r in db.get_our_posts(conn, handle="jaquelinebycie")] == ["MODEL"]

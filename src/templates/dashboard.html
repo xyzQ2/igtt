@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ brand.name }} Dashboard</title>
+<style>
+  :root { --bg: #fcfcfb; --card: #ffffff; --ink: #0b0b0b; --muted: #52514e;
+          --line: #e4e3df; --bar: #2a78d6; --good: #008300; --bad: #c0392b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a19; --card: #232322; --ink: #f0efec; --muted: #c3c2b7;
+            --line: #3a3936; --bar: #3987e5; --good: #4caf50; --bad: #e57368; }
+  }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--ink); margin: 0; padding: 16px; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 6px; }
+  .sub, .muted { color: var(--muted); font-size: 13px; }
+  nav { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  nav a, button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px;
+                  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+                  text-decoration: none; cursor: pointer; }
+  .msg { padding: 10px 14px; border-radius: 6px; border: 1px solid var(--bar); margin: 12px 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .tile b { display: block; font-size: 26px; }
+  .wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td:first-child { white-space: nowrap; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chart { display: flex; align-items: flex-end; gap: 2px; height: 140px;
+           border-bottom: 1px solid var(--line); padding-top: 8px; }
+  .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .bar { background: var(--bar); border-radius: 4px 4px 0 0; min-height: 0; }
+  .col:hover .bar { opacity: .75; }
+  .axis { display: flex; gap: 2px; font-size: 11px; color: var(--muted); }
+  .axis span { flex: 1; text-align: center; overflow: hidden; white-space: nowrap; }
+  .up { color: var(--good); } .down { color: var(--bad); }
+  .cap { max-width: 360px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+         -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  a { color: var(--bar); }
+  select { font: inherit; font-size: 13px; max-width: 220px; }
+</style>
+</head>
+<body>
+<main>
+{# Colour follows the printed value, so a 0.98 shown as "1.0×" is not red. #}
+{% macro x(v) %}{% if v is none %}—{% else %}<span class="{{ 'up' if v|round(1) >= 1 else 'down' }}">{{ "%.1f"|format(v) }}×</span>{% endif %}{% endmacro %}
+{# A group multiple below min_sample is blank, with the count still shown. #}
+{% macro xn(v, n) %}{% if v is none %}<span class="muted" title="Needs at least {{ min_sample }} measured posts">—</span>{% else %}{{ x(v) }}{% endif %}{% if n %} <small class="muted">n={{ n }}</small>{% endif %}{% endmacro %}
+{% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
+{% macro num(v) %}{{ "{:,.0f}".format(v) if v is not none else "—" }}{% endmacro %}
+
+<h1>{{ brand.name }} Dashboard</h1>
+<div class="sub">
+  {% if last_run %}
+    Last run {{ last_run.ran_at[:16].replace("T", " ") }} UTC —
+    {% if last_run.ok %}✅ {{ last_run.stats.posts }} posts from {{ last_run.stats.accounts }} accounts
+    {% else %}❌ collected 0 posts (check the Instagram/Apify connection in Settings){% endif %}
+  {% else %}No run yet.{% endif %}
+</div>
+
+{% if interactive %}
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/report">Today's ideas &amp; report</a>
+  <a href="/settings">Settings</a>
+  <form method="post" action="/run" style="margin:0"><button>Run analysis now</button></form>
+</nav>
+{% endif %}
+{% if message %}<div class="msg">{{ message }}</div>{% endif %}
+
+<h2>Last 30 days at a glance</h2>
+<div class="tiles">
+  <div class="tile"><b>{{ overall.posts }}</b><span class="muted">your posts</span></div>
+  <div class="tile"><b>{{ overall.suggested }}</b><span class="muted">made from suggested ideas</span></div>
+  <div class="tile"><b>{{ xn(overall.suggested_vs_normal, overall.suggested_n) }}</b><span class="muted">suggested posts vs your normal engagement</span></div>
+  <div class="tile"><b>{{ xn(overall.other_vs_normal, overall.other_n) }}</b><span class="muted">your other posts vs normal</span></div>
+  <div class="tile"><b>{{ pct(overall.er) }}</b><span class="muted">your engagement rate (by followers)</span></div>
+</div>
+<p class="muted">"Normal" = the median likes + comments + shares of your other posts; above 1.0× beats your usual.
+An average multiple needs at least {{ min_sample }} measured posts (n = how many there are) — fewer is noise.
+Engagement rate = (likes + comments + shares) ÷ followers, the figure industry benchmarks quote; hidden likes count as unknown, so it reads low for accounts that hide them.</p>
+
+<h2>Daily — your engagement, last 14 days</h2>
+<div class="chart" role="img" aria-label="Average engagement per post by day, last 14 days">
+  {% for d in daily %}
+  <div class="col" title="{{ d.label }}: {{ num(d.engagement) }} avg engagement, {{ d.posts }} post(s), {{ d.suggested }} suggested">
+    <div class="bar" style="height: {{ ((d.engagement or 0) / peak * 100)|round(1) }}%"></div>
+  </div>
+  {% endfor %}
+</div>
+<div class="axis">{% for d in daily %}<span>{{ d.label[4:6] }}</span>{% endfor %}</div>
+<div class="wrap"><table>
+  <tr><th>Day</th><th>Posts</th><th>From ideas</th><th>Avg engagement</th><th>Suggested vs normal</th><th>Other vs normal</th></tr>
+  {% for d in daily|reverse %}{% if d.posts %}
+  <tr><td>{{ d.label }}</td><td class="n">{{ d.posts }}</td><td class="n">{{ d.suggested }}</td>
+      <td class="n">{{ num(d.engagement) }}</td><td class="n">{{ xn(d.suggested_vs_normal, d.suggested_n) }}</td>
+      <td class="n">{{ xn(d.other_vs_normal, d.other_n) }}</td></tr>
+  {% endif %}{% endfor %}
+  {% if not daily|selectattr("posts")|list %}
+  <tr><td colspan="6" class="muted">No posts of yours in the last 14 days.</td></tr>
+  {% endif %}
+</table></div>
+
+<h2>Weekly</h2>
+<div class="wrap"><table>
+  <tr><th>Week</th><th>Posts</th><th>From ideas</th><th>Avg engagement</th><th>Suggested vs normal</th><th>Other vs normal</th></tr>
+  {% for w in weekly|reverse %}
+  <tr><td>{{ w.label }}</td><td class="n">{{ w.posts }}</td><td class="n">{{ w.suggested }}</td>
+      <td class="n">{{ num(w.engagement) }}</td><td class="n">{{ xn(w.suggested_vs_normal, w.suggested_n) }}</td>
+      <td class="n">{{ xn(w.other_vs_normal, w.other_n) }}</td></tr>
+  {% endfor %}
+</table></div>
+
+<h2>Your last {{ [ours|length, 10]|min }} posts</h2>
+{% if interactive %}<p class="muted">Posted one of the suggested ideas? Pick it next to the post so it counts as "suggested".</p>{% endif %}
+<div class="wrap"><table>
+  <tr><th>Date</th><th>Post</th><th>Views</th><th>Likes</th><th>Comments</th><th>Eng. rate</th><th>vs normal</th><th>From idea</th></tr>
+  {% for p in ours[:10] %}
+  <tr><td>{{ p.day or "" }}</td>
+      <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
+      <td class="n">{{ num(p.views) }}</td><td class="n">{{ num(p.likes) }}</td><td class="n">{{ num(p.comments) }}</td>
+      <td class="n">{{ pct(p.er) }}</td><td class="n">{{ x(p.vs_normal) }}</td>
+      <td>{% if interactive %}
+        <form method="post" action="/link" style="margin:0">
+          <input type="hidden" name="shortcode" value="{{ p.shortcode }}">
+          <select name="idea_id" onchange="this.form.submit()">
+            <option value="">— not from an idea —</option>
+            {% for i in ideas %}<option value="{{ i.id }}" {% if p.idea and p.idea.id == i.id %}selected{% endif %}>#{{ i.id }} {{ i.brief.concept[:40] }}</option>{% endfor %}
+          </select>
+        </form>
+      {% elif p.idea %}#{{ p.idea.id }} {{ p.idea.brief.concept }}{% else %}—{% endif %}</td></tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">None of your posts collected yet.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h2>Top 10 posts in your niche</h2>
+<div class="wrap"><table>
+  <tr><th>#</th><th>Account</th><th>Post</th><th>Score</th><th>Views</th><th>Likes</th><th>Comments</th><th>Eng. rate</th><th>Why it works</th></tr>
+  {% for p in top_posts %}
+  <tr><td class="n">{{ loop.index }}</td><td>@{{ p.username }}</td>
+      <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
+      <td class="n">{{ "%.0f"|format(p.final_score) }}</td><td class="n">{{ num(p.views) }}</td>
+      <td class="n">{{ num(p.likes) }}</td><td class="n">{{ num(p.comments) }}</td>
+      <td class="n">{{ pct(p.er) }}</td><td class="muted">{{ p.analysis.reusable_pattern if p.analysis else "" }}</td></tr>
+  {% else %}
+  <tr><td colspan="9" class="muted">No posts collected yet.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h2>Gaining fastest (traction)</h2>
+<div class="wrap"><table>
+  <tr><th>Account</th><th>Post</th><th>New engagement / day</th><th>Total engagement</th></tr>
+  {% for p in rising %}
+  <tr><td>@{{ p.username }}</td>
+      <td>{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">open</a> {% endif %}<span class="cap">{{ p.caption or "" }}</span></td>
+      <td class="n">+{{ num(p.traction) }}</td><td class="n">{{ num(p.engagement) }}</td></tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Needs two daily runs to measure growth.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h2>Latest 10 suggested ideas</h2>
+<div class="wrap"><table>
+  <tr><th>#</th><th>Idea</th><th>Hook</th><th>Status</th></tr>
+  {% for i in ideas[:10] %}
+  <tr><td class="n">{{ i.id }}</td><td>{{ i.brief.concept }}</td><td class="muted">{{ i.brief.hook }}</td>
+      <td>{{ "✅ posted" if i.posted_shortcode else "new" }}</td></tr>
+  {% endfor %}
+</table></div>
+</main>
+</body>
+</html>

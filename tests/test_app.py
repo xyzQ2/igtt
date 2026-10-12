@@ -72,7 +72,7 @@ def test_daily_run_end_to_end(tmp_path, cfg_file, mocker, monkeypatch):
         fake_claude_response(json.dumps(PATTERNS)),
         fake_claude_response(json.dumps(IDEAS)),
     ]
-    mocker.patch("app.Anthropic", return_value=claude)
+    mocker.patch("app.llm.client", return_value=claude)
 
     # Gemini video tier
     mocker.patch("app.analyze.analyze_video", return_value=None)
@@ -102,7 +102,7 @@ def test_total_apify_failure_skips_claude_and_fails(tmp_path, cfg_file, mocker, 
     conn.close()
 
     mocker.patch("app.apify.fetch_profile_posts", return_value=[])
-    anthropic = mocker.patch("app.Anthropic")
+    anthropic = mocker.patch("app.llm.client")
     report_path = tmp_path / "latest.html"
 
     stats = app.run_daily(config_path=cfg_file, db_path=db_path,
@@ -140,7 +140,7 @@ def test_ai_limits_are_enforced(tmp_path, cfg_file, mocker, monkeypatch):
     mocker.patch("app.analyze.analyze_video", return_value=None)
     mocker.patch("app.patterns.detect_patterns", return_value=[])
     mocker.patch("app.ideas.generate_ideas", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
 
     stats = app.run_daily(config_path=cfg_file, db_path=db_path,
                           report_path=str(tmp_path / "r.html"))
@@ -174,7 +174,7 @@ def test_collect_refreshes_account_followers_from_post(tmp_path, cfg_file, mocke
     mocker.patch("app.analyze.analyze_video", return_value=None)
     mocker.patch("app.patterns.detect_patterns", return_value=[])
     mocker.patch("app.ideas.generate_ideas", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
 
     app.run_daily(config_path=cfg_file, db_path=db_path,
                  report_path=str(tmp_path / "r.html"))
@@ -202,7 +202,7 @@ def test_collect_warns_when_no_post_reports_followers(tmp_path, cfg_file, mocker
     mocker.patch("app.analyze.analyze_video", return_value=None)
     mocker.patch("app.patterns.detect_patterns", return_value=[])
     mocker.patch("app.ideas.generate_ideas", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
 
     with caplog.at_level(logging.WARNING, logger="app"):
         app.run_daily(config_path=cfg_file, db_path=db_path,
@@ -214,40 +214,89 @@ def test_collect_warns_when_no_post_reports_followers(tmp_path, cfg_file, mocker
     )
 
 
-def test_collect_binds_real_shortcode_to_posted_idea(tmp_path, cfg_file, mocker,
-                                                      monkeypatch):
-    """media_publish's id (posted_ref) and the real Instagram shortcode are different
-    things; the feedback loop needs the latter bound onto the idea that
-    produced it."""
-    monkeypatch.setenv("APIFY_TOKEN", "t")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "t")
+def test_meta_source_collects_without_apify(tmp_path, cfg_file, mocker, monkeypatch):
+    """monitoring.source: meta uses Business Discovery for other accounts and
+    our own media+insights for us — Apify is never called."""
+    monkeypatch.setenv("IG_ACCESS_TOKEN", "tok")
+    monkeypatch.setenv("IG_USER_ID", "17841")
     db_path = str(tmp_path / "test.db")
     conn = db.connect(db_path)
     db.init_schema(conn)
-    own = app.load_config(cfg_file)["brand"]["instagram"]
-    db.upsert_account(conn, own, category="own", active=1)
-    idea_id = db.save_idea(conn, {"concept": "c", "source_pattern": "P"}, None,
-                           "LOW", 80.0)
-    db.mark_idea_posted(conn, idea_id, "ig-media-id-1")
+    db.upsert_account(conn, "wineexample", followers=82000)
     conn.close()
+    own = app.load_config(cfg_file)["brand"]["instagram"]
 
-    mocker.patch("app.apify.fetch_profile_posts", return_value=[
-        _one_post(shortcode="REALCODE1", username=own,
-                  owner_followers=5000)
-    ])
+    theirs = mocker.patch("app.meta.fetch_profile_posts", return_value=([_one_post()], []))
+    ours = mocker.patch("app.meta.fetch_own_posts",
+                        return_value=[_one_post("OWN1", own, 5000)])
+    apify_posts = mocker.patch("app.apify.fetch_profile_posts")
+    apify_counts = mocker.patch("app.apify.fetch_follower_counts")
     mocker.patch("app.analyze.analyze_text", return_value=None)
-    mocker.patch("app.analyze.analyze_video", return_value=None)
     mocker.patch("app.patterns.detect_patterns", return_value=[])
     mocker.patch("app.ideas.generate_ideas", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
 
-    app.run_daily(config_path=cfg_file, db_path=db_path,
-                 report_path=str(tmp_path / "r.html"))
+    stats = app.run_daily(config_path=cfg_file, db_path=db_path,
+                          report_path=str(tmp_path / "r.html"))
 
+    assert stats["posts"] == 2
+    assert theirs.call_args.args[:3] == ("tok", "17841", ["wineexample"])
+    assert ours.call_args.args[:3] == ("tok", "17841", own)
+    apify_posts.assert_not_called()
+    apify_counts.assert_not_called()
+    assert (tmp_path / "dashboard.html").exists()
+
+
+def test_apify_fills_in_only_the_accounts_meta_could_not_read(tmp_path, cfg_file, mocker,
+                                                              monkeypatch):
+    """Meta first; Apify is paid, so it only sees Meta's failures."""
+    monkeypatch.setenv("IG_ACCESS_TOKEN", "tok")
+    monkeypatch.setenv("IG_USER_ID", "17841")
+    monkeypatch.setenv("APIFY_TOKEN", "t")
+    db_path = str(tmp_path / "test.db")
     conn = db.connect(db_path)
-    row = db.get_idea(conn, idea_id)
+    db.init_schema(conn)
+    db.upsert_account(conn, "business", followers=1000)
+    db.upsert_account(conn, "personal")  # Business Discovery can't read it
     conn.close()
-    assert row["posted_shortcode"] == "REALCODE1"
+
+    mocker.patch("app.meta.fetch_profile_posts",
+                 return_value=([_one_post("B1", "business", 1000)], ["personal"]))
+    mocker.patch("app.meta.fetch_own_posts", return_value=[])  # readable, nothing new
+    counts = mocker.patch("app.apify.fetch_follower_counts", return_value={"personal": 500})
+    apify_posts = mocker.patch("app.apify.fetch_profile_posts",
+                               return_value=[_one_post("P1", "personal", None)])
+    mocker.patch("app.analyze.analyze_text", return_value=None)
+    mocker.patch("app.patterns.detect_patterns", return_value=[])
+    mocker.patch("app.ideas.generate_ideas", return_value=[])
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
+
+    stats = app.run_daily(config_path=cfg_file, db_path=db_path,
+                          report_path=str(tmp_path / "r.html"))
+
+    assert apify_posts.call_args.args[1] == ["personal"], "only Meta's failures go to Apify"
+    assert counts.call_args.args[1] == ["personal"]
+    assert stats["posts"] == 2
+
+
+def test_without_meta_connection_everything_falls_back_to_apify(tmp_path, cfg_file, mocker,
+                                                                 monkeypatch):
+    monkeypatch.setenv("APIFY_TOKEN", "t")
+    db_path = str(tmp_path / "test.db")
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    db.upsert_account(conn, "business", followers=1000)
+    conn.close()
+    meta_posts = mocker.patch("app.meta.fetch_profile_posts")
+    apify_posts = mocker.patch("app.apify.fetch_profile_posts", return_value=[])
+    mocker.patch("app.apify.fetch_follower_counts", return_value={})
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
+
+    app.run_daily(config_path=cfg_file, db_path=db_path, report_path=str(tmp_path / "r.html"))
+
+    meta_posts.assert_not_called()
+    own = app.load_config(cfg_file)["brand"]["instagram"]
+    assert set(apify_posts.call_args.args[1]) == {"business", own}
 
 
 def test_collect_never_exceeds_max_accounts(tmp_path, cfg_file, mocker, monkeypatch):
@@ -263,7 +312,7 @@ def test_collect_never_exceeds_max_accounts(tmp_path, cfg_file, mocker, monkeypa
     conn.close()
 
     mocker.patch("app.apify.fetch_profile_posts", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
     mocker.patch("app.ideas.generate_ideas", return_value=[])
 
     stats = app.run_daily(config_path=cfg_file, db_path=db_path,
@@ -284,7 +333,7 @@ def test_daily_run_skips_ideas_on_zero_data_day(tmp_path, cfg_file, mocker,
     conn.close()
 
     mocker.patch("app.apify.fetch_profile_posts", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
     generate = mocker.patch("app.ideas.generate_ideas", return_value=[])
 
     app.run_daily(config_path=cfg_file, db_path=db_path,
@@ -310,7 +359,7 @@ def test_save_analysis_includes_our_performance_score(tmp_path, cfg_file, mocker
     mocker.patch("app.analyze.analyze_video", return_value=None)
     mocker.patch("app.patterns.detect_patterns", return_value=[])
     mocker.patch("app.ideas.generate_ideas", return_value=[])
-    mocker.patch("app.Anthropic", return_value=mocker.Mock())
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
 
     app.run_daily(config_path=cfg_file, db_path=db_path,
                  report_path=str(tmp_path / "r.html"))
@@ -339,7 +388,7 @@ def test_daily_run_fills_missing_follower_counts(tmp_path, cfg_file, mocker, mon
     mocker.patch("app.apify.fetch_profile_posts", return_value=posts)
     fetch = mocker.patch("app.apify.fetch_follower_counts",
                          return_value={"wineexample": 82000})
-    mocker.patch("app.Anthropic").return_value.messages.create.side_effect = Exception("off")
+    mocker.patch("app.llm.client").return_value.messages.create.side_effect = Exception("off")
     mocker.patch("app.analyze.analyze_video", return_value=None)
     scored = mocker.spy(app.score, "score_posts")
 
@@ -347,7 +396,7 @@ def test_daily_run_fills_missing_follower_counts(tmp_path, cfg_file, mocker, mon
                   report_path=str(tmp_path / "latest.html"))
 
     assert "wineexample" in fetch.call_args.args[1]
-    assert {p["owner_followers"] for p in scored.call_args.args[0]
+    assert {p["owner_followers"] for p in scored.call_args_list[0].args[0]
             if p["username"] == "wineexample"} == {82000}
     conn = db.connect(db_path)
     row = conn.execute("SELECT followers FROM accounts WHERE username='wineexample'").fetchone()

@@ -21,14 +21,19 @@ def test_load_config_missing_file_raises(tmp_path):
         load_config(str(tmp_path / "nope.yaml"))
 
 
-def test_config_documents_that_posting_auto_is_unused():
-    """posting.auto is deliberately dead — a future reader must not 'fix' it
-    without a comment explaining why nothing reads it."""
-    text = Path("config.yaml").read_text()
-    auto_line = next(i for i, line in enumerate(text.splitlines())
-                     if line.strip().startswith("auto:"))
-    preceding = "\n".join(text.splitlines()[max(0, auto_line - 4):auto_line])
-    assert "unused" in preceding or "intentionally" in preceding
+def test_blank_models_fall_back_to_provider_defaults(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("models:\n  provider: openai\n  text_analysis:\n  strategy: my-model\n")
+    models = load_config(str(p))["models"]
+    assert models["text_analysis"] == "gpt-5-mini"
+    assert models["strategy"] == "my-model", "an explicit model always wins"
+
+
+def test_unknown_provider_is_rejected(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("models:\n  provider: mistral\n")
+    with pytest.raises(ValueError):
+        load_config(str(p))
 
 
 def test_industry_and_target_market_reach_every_formatted_prompt():
