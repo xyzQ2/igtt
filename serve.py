@@ -1,13 +1,23 @@
 """Local dashboard + settings page. Start.command runs this and opens the browser.
 
-Listens on 127.0.0.1 only. Rejects any request whose Host or Origin is not this
-server, so a web page open in another tab cannot read the dashboard or change
-settings (DNS rebinding / CSRF). Secrets are written to .env and never rendered
-back into the page.
+By default it listens on 127.0.0.1 only and rejects any request whose Host is not
+this server (DNS rebinding). With DASHBOARD_PASSWORD set in .env it listens on the
+local network too, so a phone on the same Wi-Fi can open it, and every request
+must carry that password (HTTP Basic auth — the browser's own login prompt).
+Either way a request whose Origin is another site is refused (CSRF: browsers
+attach saved Basic credentials to cross-site form posts). Secrets are written to
+.env and never rendered back into the page.
+
+ponytail: plain HTTP, so the password crosses the Wi-Fi unencrypted — fine at
+home, not on public Wi-Fi. HTTPS needs a certificate the phone trusts.
 """
 
+import base64
+import hmac
 import html
 import os
+import socket
+import time
 import subprocess
 import sys
 import webbrowser
@@ -16,7 +26,7 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 import yaml
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 ROOT = Path(__file__).parent
 os.chdir(ROOT)
@@ -41,6 +51,20 @@ TEXTS = [("brand", "name", "Brand name"), ("brand", "instagram", "Your Instagram
          ("brand", "industry", "What you sell"), ("brand", "target_market", "Who it's for"),
          ("brand", "voice", "Brand voice")]
 _run = None  # the "Run now" subprocess
+PASSWORD = ""  # DASHBOARD_PASSWORD, read once at start; changing it needs a restart
+MIN_PASSWORD = 8
+
+
+def lan_ip() -> str:
+    """This Mac's address on the local network (no packet is sent)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 
 def read_cfg() -> dict:
@@ -129,7 +153,17 @@ Fill all three only to connect or reconnect — see the START HERE guide.</div>
     for sec, key, label, lo, hi in NUMBERS:
         out.append(f'<label>{label} ({lo}–{hi})</label><input type="number" min="{lo}" max="{hi}" '
                    f'name="{sec}.{key}" value="{cfg[sec][key]}">')
-    out.append("</fieldset><button>Save settings</button></form>")
+    phone = (f"on — open <b>http://{lan_ip()}:{PORT}</b> on a phone on the same Wi-Fi"
+             if PASSWORD else "off")
+    if bool(env.get("DASHBOARD_PASSWORD")) != bool(PASSWORD):
+        phone += " (changed — close and reopen Start.command to apply)"
+    out.append(f"""</fieldset><fieldset><legend>7. Phone access</legend>
+<div class="hint">Status: {phone}. Only works on your home Wi-Fi — avoid turning it on over public Wi-Fi.</div>
+<label>Password for phone access (at least {MIN_PASSWORD} characters)</label>
+<input type="password" name="phone_password" autocomplete="new-password">
+<div class="hint">{saved("DASHBOARD_PASSWORD")}</div>
+<label><input type="checkbox" name="phone_off"> Turn phone access off</label></fieldset>""")
+    out.append("<button>Save settings</button></form>")
     return page("Settings", "".join(out))
 
 
@@ -171,9 +205,18 @@ def save_settings(form: dict) -> str:
             notes.append(f"Connected to Instagram @{got['username']}.")
         except ValueError as exc:
             notes.append(f"Instagram NOT connected: {exc}")
+    if f.get("phone_password"):
+        if len(f["phone_password"]) < MIN_PASSWORD:
+            notes.append(f"Phone password NOT saved: use at least {MIN_PASSWORD} characters.")
+        else:
+            secrets["DASHBOARD_PASSWORD"] = f["phone_password"]
     for key, value in secrets.items():
         if value:
             set_key(str(ENV), key, value)
+    if "phone_off" in f:
+        unset_key(str(ENV), "DASHBOARD_PASSWORD")
+    if "phone_off" in f or secrets.get("DASHBOARD_PASSWORD"):
+        notes.append("Close and reopen Start.command to apply the phone access change.")
 
     CONFIG.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
                       encoding="utf-8")
@@ -194,9 +237,34 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _trusted(self) -> bool:
+        host = self.headers.get("Host") or ""
         origin = self.headers.get("Origin")
-        return (self.headers.get("Host") in ALLOWED_HOSTS
-                and (origin is None or origin.split("//", 1)[-1] in ALLOWED_HOSTS))
+        if origin is not None and origin.split("//", 1)[-1] != host:
+            return False  # another site posting here
+        return self._authorized() if PASSWORD else host in ALLOWED_HOSTS
+
+    def _authorized(self) -> bool:
+        """Basic auth; the username is ignored. Constant-time compare."""
+        header = self.headers.get("Authorization") or ""
+        if not header.startswith("Basic "):
+            return False
+        try:
+            supplied = base64.b64decode(header[6:]).decode("utf-8").partition(":")[2]
+        except ValueError:
+            return False
+        ok = hmac.compare_digest(supplied.encode(), PASSWORD.encode())
+        if not ok:
+            time.sleep(1)  # ponytail: slows guessing; per-IP lockout if ever exposed wider
+        return ok
+
+    def _refuse(self):
+        if PASSWORD:
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Dashboard", charset="UTF-8"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        else:
+            self._send("forbidden", 403, "text/plain")
 
     def _dashboard(self, message: str = ""):
         cfg = load_config(str(CONFIG))
@@ -210,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if not self._trusted():
-            return self._send("forbidden", 403, "text/plain")
+            return self._refuse()
         if self.path == "/":
             self._dashboard()
         elif self.path == "/settings":
@@ -226,7 +294,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         global _run
         if not self._trusted():
-            return self._send("forbidden", 403, "text/plain")
+            return self._refuse()
         length = int(self.headers.get("Content-Length") or 0)
         form = parse_qs(self.rfile.read(length).decode("utf-8"), keep_blank_values=True)
         if self.path == "/settings":
@@ -257,13 +325,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global PASSWORD
+    PASSWORD = (dotenv_values(ENV).get("DASHBOARD_PASSWORD") or "") if ENV.exists() else ""
     url = f"http://127.0.0.1:{PORT}/"
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        server = ThreadingHTTPServer(("0.0.0.0" if PASSWORD else "127.0.0.1", PORT), Handler)
     except OSError:  # already running in another window
         webbrowser.open(url)
         return
     print(f"Dashboard running at {url} — keep this window open; close it to stop.")
+    if PASSWORD:
+        print(f"Phone access ON: open http://{lan_ip()}:{PORT}/ on the same Wi-Fi "
+              "and enter your dashboard password.")
     webbrowser.open(url)
     server.serve_forever()
 

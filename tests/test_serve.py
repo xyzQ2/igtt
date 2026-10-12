@@ -87,3 +87,44 @@ def test_only_this_server_may_call_it(host, origin, ok):
     h = object.__new__(serve.Handler)
     h.headers = {"Host": host, **({"Origin": origin} if origin else {})}
     assert h._trusted() is ok
+
+
+def _handler(headers):
+    h = object.__new__(serve.Handler)
+    h.headers = headers
+    return h
+
+
+def _basic(password):
+    import base64
+    return "Basic " + base64.b64encode(f"any:{password}".encode()).decode()
+
+
+@pytest.mark.parametrize("headers,ok", [
+    ({"Host": "192.168.1.20:8765"}, False),                                   # no password
+    ({"Host": "192.168.1.20:8765", "Authorization": _basic("wrong-pass")}, False),
+    ({"Host": "192.168.1.20:8765", "Authorization": _basic("secret-pass")}, True),
+    ({"Host": "127.0.0.1:8765", "Authorization": _basic("secret-pass")}, True),
+    ({"Host": "192.168.1.20:8765", "Authorization": _basic("secret-pass"),
+      "Origin": "https://evil.com"}, False),          # saved credentials ride a cross-site post
+    ({"Host": "192.168.1.20:8765", "Authorization": _basic("secret-pass"),
+      "Origin": "http://192.168.1.20:8765"}, True),
+])
+def test_phone_access_needs_the_password_and_same_origin(monkeypatch, headers, ok):
+    monkeypatch.setattr(serve, "PASSWORD", "secret-pass")
+    monkeypatch.setattr(serve.time, "sleep", lambda s: None)
+    assert _handler(headers)._trusted() is ok
+
+
+def test_without_a_password_the_lan_is_refused():
+    assert _handler({"Host": "192.168.1.20:8765"})._trusted() is False
+
+
+def test_phone_password_is_saved_turned_off_and_length_checked(home):
+    assert "at least 8" in serve.save_settings(form(phone_password="short"))
+    assert "DASHBOARD_PASSWORD" not in dotenv_values(home / ".env")
+    serve.save_settings(form(phone_password="long-enough"))
+    assert dotenv_values(home / ".env")["DASHBOARD_PASSWORD"] == "long-enough"
+    assert "long-enough" not in serve.settings_page()
+    serve.save_settings(form(phone_off="on"))
+    assert "DASHBOARD_PASSWORD" not in dotenv_values(home / ".env")

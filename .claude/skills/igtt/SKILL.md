@@ -57,7 +57,10 @@ Hashtag discovery has no Meta equivalent (hashtag media carries no username).
 at 08:00; `Start.command` → `serve.py` on 127.0.0.1:8765). It lives outside Downloads
 because macOS TCC blocks background jobs from reading Downloads/Desktop/Documents.
 `serve.py` rejects foreign Host/Origin (DNS rebinding/CSRF), never renders secrets
-back, and writes secrets to `.env` via `set_key`.
+back, and writes secrets to `.env` via `set_key`. Phone access: `DASHBOARD_PASSWORD` in
+`.env` (read once at start — restart to apply) binds 0.0.0.0 and requires HTTP Basic auth on
+every request; the Origin must still equal the Host, because browsers attach saved Basic
+credentials to cross-site form posts. Plain HTTP — home Wi-Fi only.
 
 ## Non-negotiables
 
@@ -190,6 +193,16 @@ python link.py <idea_id> <url>   mark which idea a post came from
 python seed_accounts.py          load seeds.txt
 python3 -m pytest tests/ -q
 ```
+
+## Previewing the UI on real data
+
+Import `serve`, point `serve.CONFIG`, `serve.ENV` and `serve.DB` at copies in the scratchpad,
+then call `serve.main()` (set `BROWSER=true` to stop it opening a tab). The DB copy keeps
+data/intelligence.db clean. **"Run now" ignores those overrides**: it spawns `app.py` in
+the repo, which writes the real DB and runs paid Apify/Claude calls. Screenshots: render
+the HTML, then `qlmanage -t -s 1400 -o . page.html` (no headless Chrome on this Mac). A
+running preview holds port 8765 — `lsof -ti tcp:8765 | xargs kill` before restarting, or
+the new one just opens a browser on the old server and exits 0.
 
 ## Shipping the local copy
 

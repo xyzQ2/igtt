@@ -46,7 +46,7 @@ environment variables named in the table above.
 | Command | What it does |
 |---|---|
 | `python app.py` | One full run |
-| `python serve.py` | Local dashboard + settings at http://127.0.0.1:8765 |
+| `python serve.py` | Local dashboard + settings at http://127.0.0.1:8765 (set `DASHBOARD_PASSWORD` in `.env`, or Settings → Phone access, to open it from a phone on the same Wi-Fi) |
 | `python link.py <idea_id> <post URL>` | Mark which idea a post came from |
 | `python discover.py` | Find new accounts via hashtags (Apify only) |
 | `python seed_accounts.py` | Load `seeds.txt` |
