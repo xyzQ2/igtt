@@ -47,7 +47,8 @@
 </head>
 <body>
 <main>
-{% macro x(v) %}{% if v is none %}—{% else %}<span class="{{ 'up' if v >= 1 else 'down' }}">{{ "%.1f"|format(v) }}×</span>{% endif %}{% endmacro %}
+{# Colour follows the printed value, so a 0.98 shown as "1.0×" is not red. #}
+{% macro x(v) %}{% if v is none %}—{% else %}<span class="{{ 'up' if v|round(1) >= 1 else 'down' }}">{{ "%.1f"|format(v) }}×</span>{% endif %}{% endmacro %}
 {% macro num(v) %}{{ "{:,.0f}".format(v) if v is not none else "—" }}{% endmacro %}
 
 <h1>{{ brand.name }} Dashboard</h1>
@@ -94,6 +95,9 @@
       <td class="n">{{ num(d.engagement) }}</td><td class="n">{{ x(d.suggested_vs_normal) }}</td>
       <td class="n">{{ x(d.other_vs_normal) }}</td></tr>
   {% endif %}{% endfor %}
+  {% if not daily|selectattr("posts")|list %}
+  <tr><td colspan="6" class="muted">No posts of yours in the last 14 days.</td></tr>
+  {% endif %}
 </table></div>
 
 <h2>Weekly</h2>

@@ -181,14 +181,14 @@ python3 -m pytest tests/ -q
 ## Shipping the local copy
 
 Toilet Wine (@drinktoiletwine, non-technical, Mac) runs a standalone snapshot at
-`~/Downloads/Toilet Wine Instagram Analyzer`: `app.py serve.py seed_accounts.py src/
+`~/Downloads/hft/Toilet Wine Instagram Analyzer`: `app.py serve.py seed_accounts.py src/
 prompts/ Install.command Start.command "START HERE.html"`, plus its own `config.yaml`
 (wine brand, `source: meta`), wine `seeds.txt`, and `requirements.txt` without pytest. No
 tests, workflows, discover.py or link.py. After changing any of those files, re-sync:
 
 ```
 rsync -a --exclude __pycache__ app.py serve.py seed_accounts.py src prompts \
-  Install.command Start.command "START HERE.html" "$HOME/Downloads/Toilet Wine Instagram Analyzer/"
+  Install.command Start.command "START HERE.html" "$HOME/Downloads/hft/Toilet Wine Instagram Analyzer/"
 ```
 
 Never copy `config.yaml`, `seeds.txt`, `.env` or `data/` over it. `Install.command` is
