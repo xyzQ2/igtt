@@ -83,7 +83,7 @@ def settings_page(message: str = "") -> str:
         return "✓ saved — leave blank to keep" if env.get(key) else "not set yet"
 
     provider = cfg["models"].get("provider") or "anthropic"
-    source = cfg["monitoring"].get("source", "apify")
+    source = cfg["monitoring"].get("source", "meta")
     out = ['<p><a href="/">← Back to dashboard</a></p><h1>Settings</h1>']
     if message:
         out.append(f'<p class="msg">{e(message)}</p>')
@@ -104,15 +104,15 @@ def settings_page(message: str = "") -> str:
                f'<div class="hint">{saved(llm.KEY_ENV[provider])}</div></fieldset>')
 
     out.append(f"""<fieldset><legend>3. Instagram connection (Meta)</legend>
-<div class="hint">Status: {"✓ connected (account id " + e(env.get("IG_USER_ID") or "") + ")" if env.get("IG_ACCESS_TOKEN") else "not connected"}.
+<div class="hint">Status: {"✓ token saved (account id " + e(env.get("IG_USER_ID") or "") + ")" if env.get("IG_ACCESS_TOKEN") else "not connected"}.
 Fill all three only to connect or reconnect — see the START HERE guide.</div>
 <label>Meta App ID</label><input name="app_id" autocomplete="off">
 <label>Meta App Secret</label><input type="password" name="app_secret" autocomplete="off">
 <label>Access token from Graph API Explorer</label><input type="password" name="explorer_token" autocomplete="off">
 <label>Where posts come from</label><select name="source">
-<option value="meta" {"selected" if source == "meta" else ""}>Meta (free — Business/Creator accounts only, no view counts)</option>
-<option value="apify" {"selected" if source == "apify" else ""}>Apify (paid — adds view counts)</option></select>
-<label>Apify token (only if using Apify)</label><input type="password" name="apify" autocomplete="off">
+<option value="meta" {"selected" if source == "meta" else ""}>Meta first (free), Apify for accounts Meta can't read</option>
+<option value="apify" {"selected" if source == "apify" else ""}>Apify only (paid — adds view counts)</option></select>
+<label>Apify token (optional with Meta; reads personal accounts Meta can't)</label><input type="password" name="apify" autocomplete="off">
 <div class="hint">{saved("APIFY_TOKEN")}</div></fieldset>""")
 
     out.append(f"""<fieldset><legend>4. Daily email</legend>

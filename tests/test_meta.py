@@ -42,9 +42,10 @@ def test_business_discovery_skips_failing_accounts_and_old_posts(mocker):
             media(1), media(2, ts="2001-01-01T00:00:00+0000")]}}})
     mocker.patch("src.meta.requests.get", side_effect=fake_get)
 
-    posts = meta.fetch_profile_posts("t", "1", ["good", "bad"], 30, 8)
+    posts, failed = meta.fetch_profile_posts("t", "1", ["good", "bad"], 30, 8)
 
     assert [p["shortcode"] for p in posts] == ["CODE1"]
+    assert failed == ["bad"], "an account with only old posts is readable, not failed"
     assert posts[0]["owner_followers"] == 900
     assert posts[0]["username"] == "good"
 
@@ -67,6 +68,11 @@ def test_own_posts_read_views_and_shares_from_insights(mocker):
     assert posts["CODE1"]["shares"] == 4
     assert posts["CODE2"]["views"] is None
     assert posts["CODE1"]["username"] == "me"
+
+
+def test_own_posts_failure_is_none_not_empty(mocker):
+    mocker.patch("src.meta.requests.get", return_value=Resp({}, ok=False))
+    assert meta.fetch_own_posts("t", "1", "me", 30, 8) is None
 
 
 def test_connect_picks_the_page_linked_to_our_handle(mocker):

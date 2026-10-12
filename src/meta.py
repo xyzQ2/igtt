@@ -73,9 +73,10 @@ def _recent(posts: list, lookback_days: int) -> list:
 
 
 def fetch_profile_posts(token: str, ig_user_id: str, usernames: list,
-                        lookback_days: int, results_limit: int) -> list:
-    """Recent posts for each username via Business Discovery. Skips failures."""
-    posts = []
+                        lookback_days: int, results_limit: int) -> tuple:
+    """(recent posts, usernames Meta could not read) via Business Discovery.
+    An account that answered with no recent posts is not a failure."""
+    posts, failed = [], []
     for username in usernames:
         field = (f"business_discovery.username({username})"
                  f"{{followers_count,media.limit({results_limit}){{{MEDIA_FIELDS}}}}}")
@@ -84,6 +85,7 @@ def fetch_profile_posts(token: str, ig_user_id: str, usernames: list,
         except Exception as exc:
             # Personal (non-Business/Creator) and private accounts land here.
             logger.warning("meta: no posts for %s: %s", username, exc)
+            failed.append(username)
             continue
         followers = bd.get("followers_count")
         for m in bd.get("media", {}).get("data", []):
@@ -91,9 +93,9 @@ def fetch_profile_posts(token: str, ig_user_id: str, usernames: list,
             if p:
                 posts.append(p)
     posts = _recent(posts, lookback_days)
-    logger.info("meta returned %d usable posts from %d accounts",
-                len(posts), len(usernames))
-    return posts
+    logger.info("meta returned %d usable posts from %d accounts (%d unreadable)",
+                len(posts), len(usernames), len(failed))
+    return posts, failed
 
 
 def _insight(data: list, name: str):
@@ -108,14 +110,15 @@ def _insight(data: list, name: str):
 
 def fetch_own_posts(token: str, ig_user_id: str, handle: str, lookback_days: int,
                     results_limit: int) -> list:
-    """Our own recent posts, with views and shares from insights. [] on failure."""
+    """Our own recent posts, with views and shares from insights. None on failure,
+    so the caller can tell "unreadable" from "posted nothing lately"."""
     try:
         me = _get(ig_user_id, token, fields="followers_count")
         media = _get(f"{ig_user_id}/media", token, fields=MEDIA_FIELDS,
                      limit=results_limit).get("data", [])
     except Exception as exc:
         logger.error("meta: own account fetch failed: %s", exc)
-        return []
+        return None
     posts = []
     for m in media:
         p = normalize_media(m, handle, me.get("followers_count"))

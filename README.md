@@ -23,7 +23,7 @@ dashboard can measure suggested content separately.
 | Setting | Options |
 |---|---|
 | AI provider (`models.provider`) | `anthropic` (ANTHROPIC_API_KEY), `openai` (OPENAI_API_KEY), `google` (GEMINI_API_KEY) |
-| Data source (`monitoring.source`) | `meta`: free, uses your own Meta app (Business/Creator accounts only, no view counts for others; needs IG_ACCESS_TOKEN + IG_USER_ID). `apify`: paid scraper, includes views (APIFY_TOKEN) |
+| Data source (`monitoring.source`) | `meta` (default): free via your own Meta app (IG_ACCESS_TOKEN + IG_USER_ID, a Facebook-Login Page token). Business/Creator accounts only, no views for other accounts. Accounts Meta can't read (personal ones, or all while Meta isn't connected) fall back to Apify when APIFY_TOKEN is set. `apify`: Apify only, paid, includes views |
 | Email | `email.enabled` + SMTP_HOST / SMTP_USER / SMTP_PASSWORD / SMTP_TO |
 
 Blank `models.text_analysis` / `models.strategy` use the provider defaults in

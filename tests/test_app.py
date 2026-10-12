@@ -219,8 +219,6 @@ def test_meta_source_collects_without_apify(tmp_path, cfg_file, mocker, monkeypa
     our own media+insights for us — Apify is never called."""
     monkeypatch.setenv("IG_ACCESS_TOKEN", "tok")
     monkeypatch.setenv("IG_USER_ID", "17841")
-    cfg = Path(cfg_file).read_text().replace("source: apify", "source: meta")
-    Path(cfg_file).write_text(cfg)
     db_path = str(tmp_path / "test.db")
     conn = db.connect(db_path)
     db.init_schema(conn)
@@ -228,7 +226,7 @@ def test_meta_source_collects_without_apify(tmp_path, cfg_file, mocker, monkeypa
     conn.close()
     own = app.load_config(cfg_file)["brand"]["instagram"]
 
-    theirs = mocker.patch("app.meta.fetch_profile_posts", return_value=[_one_post()])
+    theirs = mocker.patch("app.meta.fetch_profile_posts", return_value=([_one_post()], []))
     ours = mocker.patch("app.meta.fetch_own_posts",
                         return_value=[_one_post("OWN1", own, 5000)])
     apify_posts = mocker.patch("app.apify.fetch_profile_posts")
@@ -247,6 +245,58 @@ def test_meta_source_collects_without_apify(tmp_path, cfg_file, mocker, monkeypa
     apify_posts.assert_not_called()
     apify_counts.assert_not_called()
     assert (tmp_path / "dashboard.html").exists()
+
+
+def test_apify_fills_in_only_the_accounts_meta_could_not_read(tmp_path, cfg_file, mocker,
+                                                              monkeypatch):
+    """Meta first; Apify is paid, so it only sees Meta's failures."""
+    monkeypatch.setenv("IG_ACCESS_TOKEN", "tok")
+    monkeypatch.setenv("IG_USER_ID", "17841")
+    monkeypatch.setenv("APIFY_TOKEN", "t")
+    db_path = str(tmp_path / "test.db")
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    db.upsert_account(conn, "business", followers=1000)
+    db.upsert_account(conn, "personal")  # Business Discovery can't read it
+    conn.close()
+
+    mocker.patch("app.meta.fetch_profile_posts",
+                 return_value=([_one_post("B1", "business", 1000)], ["personal"]))
+    mocker.patch("app.meta.fetch_own_posts", return_value=[])  # readable, nothing new
+    counts = mocker.patch("app.apify.fetch_follower_counts", return_value={"personal": 500})
+    apify_posts = mocker.patch("app.apify.fetch_profile_posts",
+                               return_value=[_one_post("P1", "personal", None)])
+    mocker.patch("app.analyze.analyze_text", return_value=None)
+    mocker.patch("app.patterns.detect_patterns", return_value=[])
+    mocker.patch("app.ideas.generate_ideas", return_value=[])
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
+
+    stats = app.run_daily(config_path=cfg_file, db_path=db_path,
+                          report_path=str(tmp_path / "r.html"))
+
+    assert apify_posts.call_args.args[1] == ["personal"], "only Meta's failures go to Apify"
+    assert counts.call_args.args[1] == ["personal"]
+    assert stats["posts"] == 2
+
+
+def test_without_meta_connection_everything_falls_back_to_apify(tmp_path, cfg_file, mocker,
+                                                                 monkeypatch):
+    monkeypatch.setenv("APIFY_TOKEN", "t")
+    db_path = str(tmp_path / "test.db")
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    db.upsert_account(conn, "business", followers=1000)
+    conn.close()
+    meta_posts = mocker.patch("app.meta.fetch_profile_posts")
+    apify_posts = mocker.patch("app.apify.fetch_profile_posts", return_value=[])
+    mocker.patch("app.apify.fetch_follower_counts", return_value={})
+    mocker.patch("app.llm.client", return_value=mocker.Mock())
+
+    app.run_daily(config_path=cfg_file, db_path=db_path, report_path=str(tmp_path / "r.html"))
+
+    meta_posts.assert_not_called()
+    own = app.load_config(cfg_file)["brand"]["instagram"]
+    assert set(apify_posts.call_args.args[1]) == {"business", own}
 
 
 def test_collect_never_exceeds_max_accounts(tmp_path, cfg_file, mocker, monkeypatch):

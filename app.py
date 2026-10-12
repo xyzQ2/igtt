@@ -39,33 +39,37 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     if own_handle not in [a["username"] for a in accounts]:
         accounts = list(accounts) + [db.get_account(conn, own_id)]
     stats["accounts"] = len(accounts)
-    if mon.get("source", "apify") == "meta":
-        # Business Discovery returns follower counts with the posts, and our own
-        # account comes from its media + insights, which carry views.
+    if mon.get("source", "meta") == "meta":
+        # Meta first (free): Business Discovery returns follower counts with the
+        # posts, and our own account comes from media + insights, which carry views.
+        # Apify then fills in only the accounts Meta could not read — personal
+        # accounts, or every account while Meta is not connected — if a token is set.
         token, ig_id = os.environ.get("IG_ACCESS_TOKEN", ""), os.environ.get("IG_USER_ID", "")
-        if not (token and ig_id):
-            logger.error("Instagram is not connected: IG_ACCESS_TOKEN / IG_USER_ID missing")
-        raw_posts = meta.fetch_profile_posts(
-            token, ig_id, [a["username"] for a in accounts if a["username"] != own_handle],
-            mon["posts_lookback_days"], mon["results_per_account"])
-        raw_posts += meta.fetch_own_posts(token, ig_id, own_handle,
-                                          mon["posts_lookback_days"],
-                                          mon["results_per_account"])
+        others = [a["username"] for a in accounts if a["username"] != own_handle]
+        if token and ig_id:
+            raw_posts, failed = meta.fetch_profile_posts(
+                token, ig_id, others, mon["posts_lookback_days"], mon["results_per_account"])
+            own = meta.fetch_own_posts(token, ig_id, own_handle, mon["posts_lookback_days"],
+                                       mon["results_per_account"])
+            if own is None:
+                failed.append(own_handle)
+            else:
+                raw_posts += own
+        else:
+            logger.warning("Meta is not connected (IG_ACCESS_TOKEN / IG_USER_ID missing)")
+            raw_posts, failed = [], others + [own_handle]
+        if failed and os.environ.get("APIFY_TOKEN"):
+            logger.info("Meta could not read %d accounts — trying Apify for them", len(failed))
+            more, refreshed = _collect_apify(conn, [a for a in accounts
+                                                    if a["username"] in failed], mon)
+            raw_posts += more
+            by_id = {a["id"]: a for a in refreshed}
+            accounts = [by_id.get(a["id"], a) for a in accounts]
+        elif failed:
+            logger.warning("skipped %d accounts Meta could not read (no APIFY_TOKEN)",
+                           len(failed))
     else:
-        # ponytail: only accounts with no count, so this costs ~nothing after day one;
-        # discover.py refreshes every active account's count weekly.
-        missing = [a["username"] for a in accounts if a["followers"] is None]
-        counts = apify.fetch_follower_counts(os.environ.get("APIFY_TOKEN", ""), missing)
-        for username, n in counts.items():
-            db.upsert_account(conn, username, followers=n)
-        accounts = [db.get_account(conn, a["id"]) if a["username"] in counts else a
-                    for a in accounts]
-        raw_posts = apify.fetch_profile_posts(
-            os.environ.get("APIFY_TOKEN", ""),
-            [a["username"] for a in accounts],
-            mon["posts_lookback_days"],
-            mon["results_per_account"],
-        )
+        raw_posts, accounts = _collect_apify(conn, accounts, mon)
     account_id_by_username = {a["username"]: a["id"] for a in accounts}
     followers_by_username = {a["username"]: a["followers"] for a in accounts}
     stats["posts"] = len(raw_posts)
@@ -227,6 +231,23 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     conn.close()
     logger.info("daily run complete: %s", stats)
     return stats
+
+
+def _collect_apify(conn, accounts: list, mon: dict) -> tuple:
+    """Recent posts for `accounts` via Apify, and the accounts with follower
+    counts filled in."""
+    token = os.environ.get("APIFY_TOKEN", "")
+    # ponytail: only accounts with no count, so this costs ~nothing after day one;
+    # discover.py refreshes every active account's count weekly.
+    missing = [a["username"] for a in accounts if a["followers"] is None]
+    counts = apify.fetch_follower_counts(token, missing)
+    for username, n in counts.items():
+        db.upsert_account(conn, username, followers=n)
+    accounts = [db.get_account(conn, a["id"]) if a["username"] in counts else a
+                for a in accounts]
+    posts = apify.fetch_profile_posts(token, [a["username"] for a in accounts],
+                                      mon["posts_lookback_days"], mon["results_per_account"])
+    return posts, accounts
 
 
 def build_our_results(conn, cfg) -> list:

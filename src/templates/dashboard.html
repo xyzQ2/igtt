@@ -51,7 +51,7 @@
 {# Colour follows the printed value, so a 0.98 shown as "1.0×" is not red. #}
 {% macro x(v) %}{% if v is none %}—{% else %}<span class="{{ 'up' if v|round(1) >= 1 else 'down' }}">{{ "%.1f"|format(v) }}×</span>{% endif %}{% endmacro %}
 {# A group multiple below min_sample is blank, with the count still shown. #}
-{% macro xn(v, n) %}{% if v is none %}<span class="muted" title="Needs at least {{ min_sample }} measured posts">—</span>{% else %}{{ x(v) }}{% endif %} <small class="muted">n={{ n }}</small>{% endmacro %}
+{% macro xn(v, n) %}{% if v is none %}<span class="muted" title="Needs at least {{ min_sample }} measured posts">—</span>{% else %}{{ x(v) }}{% endif %}{% if n %} <small class="muted">n={{ n }}</small>{% endif %}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% macro num(v) %}{{ "{:,.0f}".format(v) if v is not none else "—" }}{% endmacro %}
 

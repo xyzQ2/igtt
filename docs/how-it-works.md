@@ -166,7 +166,7 @@ closes the loop.
 | Catch trends earlier | lower `scoring.acceleration_threshold` |
 | More ideas per day | `ideas.daily_count` |
 | A different AI company | `models.provider` (anthropic / openai / google) + its key |
-| Free data instead of Apify | `monitoring.source: meta` (no view counts for other accounts) |
+| Free data first, Apify only as backup | `monitoring.source: meta` (default; no view counts for other accounts; Apify reads what Meta can't when `APIFY_TOKEN` is set) |
 | Trust the AI verdict more | raise `scoring.ai_weight` |
 
 Costs scale with the AI candidate counts and the account pool, not with how many posts

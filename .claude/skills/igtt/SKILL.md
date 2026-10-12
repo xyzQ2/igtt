@@ -39,6 +39,13 @@ dashboard compares suggested vs other posts against our median engagement.
 **Video tier is OFF** (`candidate_posts_for_video_ai: 0`, 2026-09-27, user's cost call —
 do not re-enable unasked). Video stays Gemini-only whatever `models.provider` says.
 
+**Meta first, Apify as backup** (`monitoring.source: meta`, the default): `fetch_profile_posts`
+returns `(posts, failed)` and `fetch_own_posts` returns None on failure, so "unreadable" is
+told apart from "posted nothing lately". Only the failed accounts go to `_collect_apify`, and
+only when `APIFY_TOKEN` is set. With no Meta token every account falls back. xyzQ2/igtt's
+`IG_ACCESS_TOKEN` is the old Instagram-Login token, so there Apify still reads everything
+until a Page token replaces it. `source: apify` = Apify only.
+
 **Meta source** (`src/meta.py`, graph.facebook.com, Page token from Facebook Login —
 NOT the graph.instagram.com Instagram-Login token): Business Discovery sees only
 Business/Creator accounts and never reports views, so `engagement_per_follower` carries
