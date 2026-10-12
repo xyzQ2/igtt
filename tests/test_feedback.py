@@ -91,3 +91,12 @@ def test_build_our_results_measured_zero_views_is_real_data(conn):
     flop = next(r for r in results if r["shortcode"] == "FLOP")
     assert flop["views"] == 0, "measured zero views is real data, not missing"
     assert flop["vs_baseline"] == 0.0, "zero views vs baseline is 0.0, not None"
+
+
+def test_get_our_posts_filters_to_the_current_handle(conn):
+    """A retargeted DB keeps the previous brand's posts flagged is_ours."""
+    old = db.upsert_account(conn, "drinktoiletwine")
+    new = db.upsert_account(conn, "jaquelinebycie")
+    add_post(conn, old, "WINE", 100, is_ours=1)
+    add_post(conn, new, "MODEL", 100, is_ours=1)
+    assert [r["shortcode"] for r in db.get_our_posts(conn, handle="jaquelinebycie")] == ["MODEL"]

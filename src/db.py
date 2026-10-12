@@ -356,14 +356,15 @@ def set_watchlist(conn, usernames: list, own: str) -> None:
 
 
 def posts_since(conn, days: int) -> list:
-    """Posts published in the last N days, with account username and followers."""
+    """Posts published in the last N days from active accounts, with username and
+    followers. Deactivated accounts drop out, as they do from collection."""
     from datetime import timedelta
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     return conn.execute(
         """
         SELECT p.*, a.username, a.followers AS owner_followers
         FROM posts p JOIN accounts a ON a.id = p.account_id
-        WHERE p.posted_at >= ?
+        WHERE p.posted_at >= ? AND a.active = 1
         ORDER BY p.posted_at DESC
         """,
         (cutoff,),
@@ -391,13 +392,19 @@ def latest_metrics(conn, post_id: int) -> dict:
     return dict(row)
 
 
-def get_our_posts(conn, days: int = 30) -> list:
-    """Our own published posts within the window."""
+def get_our_posts(conn, days: int = 30, handle: str | None = None) -> list:
+    """Our own published posts within the window. With `handle`, only that
+    account's — is_ours outlives a brand change, so a retargeted DB still holds
+    the previous brand's posts flagged as ours."""
     from datetime import timedelta
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     return conn.execute(
-        "SELECT * FROM posts WHERE is_ours = 1 AND posted_at >= ? ORDER BY posted_at DESC",
-        (cutoff,),
+        """
+        SELECT p.* FROM posts p JOIN accounts a ON a.id = p.account_id
+        WHERE p.is_ours = 1 AND p.posted_at >= ? AND (? IS NULL OR a.username = ?)
+        ORDER BY p.posted_at DESC
+        """,
+        (cutoff, handle, handle),
     ).fetchall()
 
 

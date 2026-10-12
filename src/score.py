@@ -45,15 +45,21 @@ def percentile_ranks(values: list) -> list:
     return [None if v is None else (v - lo) / span * 100.0 for v in values]
 
 
+def count(v):
+    """A platform count, or None. Apify reports -1 when an owner hides likes —
+    that is "unknown", never a real number to add up."""
+    return None if v is None or v < 0 else v
+
+
 # Hazard: aggregation. `likes or 0` folds an unmeasured metric into a genuine
 # zero — an unknown count must stay None, never become a measured 0. This is
 # where that rule keeps getting broken; do not "simplify" it back to `or 0`.
 def post_metrics(post: dict) -> dict:
     """Derive the six ranking metrics for one post. Missing stays None."""
-    views = post.get("views")
-    likes = post.get("likes")
-    comments = post.get("comments")
-    shares = post.get("shares") or 0
+    views = count(post.get("views"))
+    likes = count(post.get("likes"))
+    comments = count(post.get("comments"))
+    shares = count(post.get("shares")) or 0
     followers = post.get("owner_followers") or 0
 
     engagement = (None if (likes is None and comments is None)

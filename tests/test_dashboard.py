@@ -79,3 +79,24 @@ def test_render_escapes_captions_and_hides_forms_when_static(conn):
     assert "<b>x</b>" not in static and "&lt;b&gt;x&lt;/b&gt;" in static
     assert "/link" not in static
     assert 'action="/link"' in dashboard.render(ctx, interactive=True)
+
+
+def test_hidden_likes_are_unknown_not_minus_one(conn):
+    """Apify reports -1 when the owner hides likes."""
+    for i in range(3):
+        add(conn, "me", f"N{i}", 100, ours=True)
+    add(conn, "me", "HIDDEN", -1, ours=True)
+    ctx = dashboard.build_context(conn, CFG)
+    hidden = next(p for p in ctx["ours"] if p["shortcode"] == "HIDDEN")
+    assert hidden["likes"] is None
+    assert hidden["engagement"] == 0, "the measured 0 comments still count"
+
+
+def test_previous_brand_and_inactive_accounts_are_excluded(conn):
+    add(conn, "oldbrand", "OLD", 500, ours=True)  # flagged ours under the last brand
+    add(conn, "retired", "R", 900)
+    db.upsert_account(conn, "retired", active=0)
+    add(conn, "me", "MINE", 10, ours=True)
+    ctx = dashboard.build_context(conn, CFG)
+    assert [p["shortcode"] for p in ctx["ours"]] == ["MINE"]
+    assert ctx["top_posts"] == []

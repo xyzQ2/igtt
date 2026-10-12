@@ -137,3 +137,10 @@ def test_fetch_profile_posts_drops_posts_older_than_lookback(mocker):
     mock_post.return_value.json.return_value = items
     posts = apify.fetch_profile_posts("tok", ["a"], lookback_days=7, results_limit=20)
     assert [p["shortcode"] for p in posts] == ["NEW", "UNDATED"]
+
+
+def test_hidden_like_count_is_none_not_minus_one():
+    from src import apify
+    p = apify.normalize_post({"shortCode": "X", "likesCount": -1, "commentsCount": 0})
+    assert p["likes"] is None
+    assert p["comments"] == 0, "a measured zero stays zero"

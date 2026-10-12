@@ -233,7 +233,7 @@ def build_our_results(conn, cfg) -> list:
     """How our own recent posts performed against our own 30-day baseline."""
     import json as _json
 
-    our_posts = db.get_our_posts(conn, days=30)
+    our_posts = db.get_our_posts(conn, days=30, handle=cfg["brand"]["instagram"])
     if not our_posts:
         return []
 

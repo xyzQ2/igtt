@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+from src.score import count
+
 logger = logging.getLogger(__name__)
 
 ACTOR_URL = ("https://api.apify.com/v2/acts/apify~instagram-scraper/"
@@ -31,7 +33,7 @@ def normalize_post(raw: dict) -> dict | None:
 
     play_count = raw.get("videoPlayCount")
     view_count = raw.get("videoViewCount")
-    views = play_count if play_count is not None else view_count
+    views = count(play_count if play_count is not None else view_count)
 
     return {
         "platform": "instagram",
@@ -46,8 +48,8 @@ def normalize_post(raw: dict) -> dict | None:
         "posted_at": raw.get("timestamp"),
         "duration_sec": raw.get("videoDuration"),
         "views": views,
-        "likes": raw.get("likesCount"),
-        "comments": raw.get("commentsCount"),
+        "likes": count(raw.get("likesCount")),  # -1 = hidden by the owner
+        "comments": count(raw.get("commentsCount")),
         "shares": None,  # Instagram does not expose share counts publicly
     }
 

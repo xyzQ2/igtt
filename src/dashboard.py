@@ -53,14 +53,15 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
     for r in db.posts_since(conn, 90):
         snaps = [dict(s) for s in db.get_snapshots(conn, r["id"])]
         latest = snaps[-1] if snaps else {}
-        rows.append({**dict(r), **{k: latest.get(k) for k in
+        rows.append({**dict(r), **{k: score.count(latest.get(k)) for k in
                                    ("views", "likes", "comments", "shares")},
                      "engagement": engagement(latest) if latest else None,
                      "traction": _traction(snaps), "analysis": analyses.get(r["id"]),
                      "day": _day(r["posted_at"])})
 
     window_start = today - timedelta(days=mon["posts_lookback_days"])
-    theirs = [p for p in rows if not p["is_ours"] and p["day"] and p["day"] >= window_start]
+    theirs = [p for p in rows if not p["is_ours"] and p["username"] != cfg["brand"]["instagram"]
+              and p["day"] and p["day"] >= window_start]
     ranked = score.score_posts(theirs, cfg["scoring"])
     for p in ranked:
         ai = (p["analysis"] or {}).get("ai_virality_score")
@@ -74,7 +75,9 @@ def build_context(conn, cfg: dict, today: date | None = None) -> dict:
     ideas = [dict(i, brief=json.loads(i["brief_json"]))
              for i in db.get_recent_ideas(conn, 60)]
     idea_by_code = {i["posted_shortcode"]: i for i in ideas if i["posted_shortcode"]}
-    ours = [p for p in rows if p["is_ours"]]
+    # is_ours outlives a brand change; only the current handle's posts are ours.
+    own = cfg["brand"]["instagram"]
+    ours = [p for p in rows if p["is_ours"] and p["username"] == own]
     for p in ours:
         others = [o["engagement"] for o in ours
                   if o is not p and o["engagement"] is not None]
