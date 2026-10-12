@@ -132,7 +132,7 @@ def test_run_discovery_activates_and_deactivates(db_path, mocker, monkeypatch):
         {"username": "corporate_wine_seminars", "relevance_score": 12,
          "category": "wine"},
     ])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     stats = discover.run_discovery(config_path="config.yaml", db_path=db_path)
     assert stats["activated"] == 1
@@ -161,7 +161,7 @@ def test_run_discovery_caps_candidates_before_scoring(db_path, mocker, monkeypat
         for i in range(150)
     ])
     score_candidates = mocker.patch("discover.score_candidates", return_value=[])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     discover.run_discovery(config_path="config.yaml", db_path=db_path)
     passed_candidates = score_candidates.call_args[0][1]
@@ -183,7 +183,7 @@ def test_run_discovery_respects_max_accounts(db_path, mocker, monkeypatch):
     mocker.patch("discover.score_candidates",
                  return_value=[{"username": "newcomer", "relevance_score": 99,
                                 "category": "wine"}])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     stats = discover.run_discovery(config_path="config.yaml", db_path=db_path)
     assert stats["activated"] == 0
@@ -208,7 +208,7 @@ def test_run_discovery_preserves_existing_accounts_before_cap(db_path, mocker, m
                  return_value=[{"username": f"new{i}", "followers": 1,
                                 "sample_captions": []} for i in range(120)])
     score_candidates = mocker.patch("discover.score_candidates", return_value=[])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     discover.run_discovery(config_path="config.yaml", db_path=db_path)
 
@@ -236,7 +236,7 @@ def test_run_discovery_never_scores_our_own_account(db_path, mocker, monkeypatch
     mocker.patch("discover.apify.search_hashtag_accounts",
                  return_value=[{"username": own, "followers": 1, "sample_captions": []}])
     score = mocker.patch("discover.score_candidates", return_value=[])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     discover.run_discovery(config_path="config.yaml", db_path=db_path)
     assert own not in [c["username"] for c in score.call_args.args[1]]
@@ -251,7 +251,7 @@ def test_run_discovery_averages_with_the_stored_score(db_path, mocker, monkeypat
     mocker.patch("discover.apify.search_hashtag_accounts", return_value=[])
     mocker.patch("discover.score_candidates",
                  return_value=[{"username": "steady", "relevance_score": 20}])
-    mocker.patch("discover.Anthropic", return_value=mocker.Mock())
+    mocker.patch("discover.llm.client", return_value=mocker.Mock())
 
     stats = discover.run_discovery(config_path="config.yaml", db_path=db_path)
     assert stats["deactivated"] == 0

@@ -93,48 +93,35 @@ def test_upsert_account_new_row_without_active_is_active(conn):
     assert row["active"] == 1
 
 
-def test_posts_today_counts_only_todays_posted_ideas(conn):
-    from datetime import datetime, timezone
+def test_link_idea_moves_a_post_between_ideas_and_unlinks(conn):
+    """One post belongs to at most one idea; re-picking moves it, None unlinks."""
+    first = db.save_idea(conn, {"concept": "a"}, None, "LOW", 80.0)
+    second = db.save_idea(conn, {"concept": "b"}, None, "LOW", 80.0)
 
-    old_id = db.save_idea(conn, {"concept": "old"}, None, "LOW", 80.0)
-    conn.execute(
-        "UPDATE ideas SET status = 'posted', posted_at = '2020-01-01T00:00:00+00:00' "
-        "WHERE id = ?", (old_id,),
-    )
-    today_id = db.save_idea(conn, {"concept": "today"}, None, "LOW", 80.0)
-    db.mark_idea_posted(conn, today_id, "ref1")
-    unposted_id = db.save_idea(conn, {"concept": "new"}, None, "LOW", 80.0)
+    db.link_idea(conn, first, "CODE1")
+    assert db.get_idea(conn, first)["posted_shortcode"] == "CODE1"
+    assert db.get_idea(conn, first)["status"] == "posted"
 
-    assert db.posts_today(conn) == 1
+    db.link_idea(conn, second, "CODE1")
+    assert db.get_idea(conn, first)["posted_shortcode"] is None
+    assert db.get_idea(conn, first)["status"] == "new"
+    assert db.get_idea(conn, second)["posted_shortcode"] == "CODE1"
 
-
-def test_bind_idea_shortcode_binds_oldest_unbound_posted_idea(conn):
-    first_id = db.save_idea(conn, {"concept": "a"}, None, "LOW", 80.0)
-    db.mark_idea_posted(conn, first_id, "ref1")
-    second_id = db.save_idea(conn, {"concept": "b"}, None, "LOW", 80.0)
-    db.mark_idea_posted(conn, second_id, "ref2")
-
-    db.bind_idea_shortcode(conn, "REALCODE")
-
-    first = db.get_idea(conn, first_id)
-    second = db.get_idea(conn, second_id)
-    assert first["posted_shortcode"] == "REALCODE"
-    assert second["posted_shortcode"] is None
+    db.link_idea(conn, None, "CODE1")
+    assert db.get_idea(conn, second)["posted_shortcode"] is None
 
 
-def test_bind_idea_shortcode_is_idempotent_on_rerun(conn):
-    """A post re-collected on a later run must not rebind its shortcode to a
-    different (newer) idea."""
-    first_id = db.save_idea(conn, {"concept": "a"}, None, "LOW", 80.0)
-    db.mark_idea_posted(conn, first_id, "ref1")
-    db.bind_idea_shortcode(conn, "REALCODE")
+def test_link_idea_rejects_unknown_idea(conn):
+    with pytest.raises(ValueError):
+        db.link_idea(conn, 999, "CODE1")
 
-    second_id = db.save_idea(conn, {"concept": "b"}, None, "LOW", 80.0)
-    db.mark_idea_posted(conn, second_id, "ref2")
-    db.bind_idea_shortcode(conn, "REALCODE")  # same post collected again
 
-    assert db.get_idea(conn, first_id)["posted_shortcode"] == "REALCODE"
-    assert db.get_idea(conn, second_id)["posted_shortcode"] is None
+def test_set_watchlist_activates_exactly_the_list_plus_our_own(conn):
+    db.upsert_account(conn, "old", active=1)
+    db.upsert_account(conn, "me", active=1)
+    db.set_watchlist(conn, ["@New", " kept ", ""], own="me")
+    active = {r["username"] for r in db.get_active_accounts(conn)}
+    assert active == {"new", "kept", "me"}
 
 
 def test_upsert_account_explicit_active_reactivates(conn):

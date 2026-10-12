@@ -12,6 +12,10 @@ brand:
     Portuguese speaking.
 
 monitoring:
+  # Where posts come from. apify: paid scraper, includes view counts.
+  # meta: free via your own Meta app (Business Discovery) — Business/Creator
+  # accounts only, no views for other accounts. Needs IG_ACCESS_TOKEN + IG_USER_ID.
+  source: apify
   max_accounts: 75
   # Models post every few days, not daily; 7 kept 9 of 80 scraped posts.
   posts_lookback_days: 30
@@ -36,6 +40,8 @@ scoring:
   total_engagement: 0.20
   raw_views: 0.15
   comments: 0.10
+  # Carries the ranking when views are unknown (monitoring.source: meta).
+  engagement_per_follower: 0.25
   ai_weight: 0.20
   acceleration_threshold: 1.5
 
@@ -57,22 +63,14 @@ discovery:
 ideas:
   daily_count: 10
 
-posting:
-  # auto is intentionally unused — nothing in the code reads this flag.
-  # Unattended posting was deferred; the absence of code enforcing it is a
-  # stronger guarantee than a flag check. Do not "fix" this by wiring it up
-  # without a deliberate design decision to allow unattended posting.
-  auto: false
-  max_per_day: 1
-  # A media_url without a scheme is treated as a path under this base, so a brief
-  # can just say "media/reel-0912.mp4". The repo is public, which is the only
-  # reason raw.githubusercontent.com works — Instagram fetches the file itself and
-  # never sends credentials.
-  media_base_url: https://raw.githubusercontent.com/xyzQ2/igtt/igtt-build/
-
 models:
-  text_analysis: claude-haiku-4-5-20251001
-  strategy: claude-sonnet-5  # effort defaults to high; was claude-opus-5
+  # anthropic | openai | google. The key goes in ANTHROPIC_API_KEY,
+  # OPENAI_API_KEY or GEMINI_API_KEY. Blank models use the provider's
+  # defaults in src/llm.py.
+  provider: anthropic
+  text_analysis:
+  strategy:
+  # Video analysis is Gemini-only (needs GEMINI_API_KEY) and is off above.
   video: models/gemini-2.5-flash
 
 email:

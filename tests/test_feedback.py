@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 import app
@@ -13,7 +15,9 @@ def conn(tmp_path):
 
 
 def add_post(conn, account_id, shortcode, views, is_ours=0,
-             posted_at="2026-09-05T10:00:00+00:00"):
+             posted_at=None):
+    # Relative, so the 30-day window never ages these posts out.
+    posted_at = posted_at or (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
     pid = db.upsert_post(conn, {
         "shortcode": shortcode, "account_id": account_id, "posted_at": posted_at,
         "is_ours": is_ours, "caption": "c", "url": "u",

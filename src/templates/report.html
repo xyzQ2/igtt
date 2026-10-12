@@ -109,7 +109,7 @@
   <p><strong>Shots:</strong> {% for s in i.shot_list %}{{ s }}{% if not loop.last %} → {% endif %}{% endfor %}</p>
   <p><strong>Caption:</strong> {{ i.caption }}</p>
   <p><strong>CTA:</strong> {{ i.cta }}</p>
-  <p><a href="{{ repo_url }}/actions/workflows/post.yml">Publish this — run the workflow with idea_id {{ i.id }}</a></p>
+  <p class="metrics">Posted it? Pick idea #{{ i.id }} next to the post in the dashboard so its results are tracked.</p>
 </div>
 {% endfor %}
 

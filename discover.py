@@ -6,9 +6,7 @@ import logging
 import os
 import sys
 
-from anthropic import Anthropic
-
-from src import apify, db
+from src import apify, db, llm
 from src.analyze import extract_json, load_prompt
 from src.config import load_config
 
@@ -99,7 +97,7 @@ def run_discovery(config_path: str = "config.yaml",
         if username in counts:
             db.upsert_account(conn, username, followers=counts[username])
 
-    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    client = llm.client(cfg["models"])
     scored = score_candidates(client, candidates, cfg["brand"],
                               cfg["models"]["strategy"], cfg["categories"])
 

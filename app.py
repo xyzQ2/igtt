@@ -8,9 +8,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from anthropic import Anthropic
-
-from src import analyze, apify, db, ideas, patterns, report, score
+from src import analyze, apify, dashboard, db, ideas, llm, meta, patterns, report, score
 from src.config import load_config
 
 logging.basicConfig(
@@ -19,8 +17,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("app")
-
-REPO_URL = "https://github.com/xyzQ2/igtt"
 
 
 def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
@@ -43,29 +39,42 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     if own_handle not in [a["username"] for a in accounts]:
         accounts = list(accounts) + [db.get_account(conn, own_id)]
     stats["accounts"] = len(accounts)
-    # ponytail: only accounts with no count, so this costs ~nothing after day one;
-    # discover.py refreshes every active account's count weekly.
-    missing = [a["username"] for a in accounts if a["followers"] is None]
-    counts = apify.fetch_follower_counts(os.environ.get("APIFY_TOKEN", ""), missing)
-    for username, n in counts.items():
-        db.upsert_account(conn, username, followers=n)
-    accounts = [db.get_account(conn, a["id"]) if a["username"] in counts else a
-                for a in accounts]
+    if mon.get("source", "apify") == "meta":
+        # Business Discovery returns follower counts with the posts, and our own
+        # account comes from its media + insights, which carry views.
+        token, ig_id = os.environ.get("IG_ACCESS_TOKEN", ""), os.environ.get("IG_USER_ID", "")
+        if not (token and ig_id):
+            logger.error("Instagram is not connected: IG_ACCESS_TOKEN / IG_USER_ID missing")
+        raw_posts = meta.fetch_profile_posts(
+            token, ig_id, [a["username"] for a in accounts if a["username"] != own_handle],
+            mon["posts_lookback_days"], mon["results_per_account"])
+        raw_posts += meta.fetch_own_posts(token, ig_id, own_handle,
+                                          mon["posts_lookback_days"],
+                                          mon["results_per_account"])
+    else:
+        # ponytail: only accounts with no count, so this costs ~nothing after day one;
+        # discover.py refreshes every active account's count weekly.
+        missing = [a["username"] for a in accounts if a["followers"] is None]
+        counts = apify.fetch_follower_counts(os.environ.get("APIFY_TOKEN", ""), missing)
+        for username, n in counts.items():
+            db.upsert_account(conn, username, followers=n)
+        accounts = [db.get_account(conn, a["id"]) if a["username"] in counts else a
+                    for a in accounts]
+        raw_posts = apify.fetch_profile_posts(
+            os.environ.get("APIFY_TOKEN", ""),
+            [a["username"] for a in accounts],
+            mon["posts_lookback_days"],
+            mon["results_per_account"],
+        )
     account_id_by_username = {a["username"]: a["id"] for a in accounts}
     followers_by_username = {a["username"]: a["followers"] for a in accounts}
-
-    raw_posts = apify.fetch_profile_posts(
-        os.environ.get("APIFY_TOKEN", ""),
-        [a["username"] for a in accounts],
-        mon["posts_lookback_days"],
-        mon["results_per_account"],
-    )
     stats["posts"] = len(raw_posts)
     logger.info("collected %d posts from %d accounts", len(raw_posts), len(accounts))
     if not raw_posts:
-        # 0 posts across every account means Apify failed (credit out, auth) —
-        # skip the paid Claude calls; main() exits 1 so the run shows red.
+        # 0 posts across every account means the source failed (credit out, auth) —
+        # skip the paid AI calls; main() exits 1 so the run shows red.
         logger.error("collected 0 posts — skipping analysis, patterns, ideas, report")
+        db.record_run(conn, stats, ok=False)
         conn.close()
         return stats
 
@@ -86,8 +95,6 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
             "content_type": p["content_type"], "posted_at": p["posted_at"],
             "duration_sec": p["duration_sec"], "is_ours": 1 if is_ours else 0,
         })
-        if is_ours:
-            db.bind_idea_shortcode(conn, p["shortcode"])
         db.add_snapshot(conn, post_id, p["views"], p["likes"], p["comments"],
                         p["shares"])
         if p.get("owner_followers") is not None:
@@ -112,7 +119,7 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
     ranked = score.score_posts(posts, cfg["scoring"])
 
     # 4. Tier 1: text ----------------------------------------------------
-    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    client = llm.client(cfg["models"])
     text_candidates = ranked[: mon["candidate_posts_for_text_ai"]]
     for post in text_candidates:
         result = analyze.analyze_text(client, post, cfg["brand"],
@@ -199,7 +206,7 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
         "brand": cfg["brand"], "stats": stats,
         "fastest_rising": fastest, "top_posts": top_posts,
         "patterns": stored_patterns, "ideas": idea_rows,
-        "our_results": our_results, "repo_url": REPO_URL,
+        "our_results": our_results,
     }
     report.render_report(context, report_path)
 
@@ -214,6 +221,9 @@ def run_daily(config_path: str = "config.yaml", db_path: str | None = None,
                       f"{cfg['brand']['name']} Intelligence — {context['report_date']}",
                       email_cfg)
 
+    db.record_run(conn, stats, ok=True)
+    Path(report_path).with_name("dashboard.html").write_text(
+        dashboard.render(dashboard.build_context(conn, cfg)), encoding="utf-8")
     conn.close()
     logger.info("daily run complete: %s", stats)
     return stats

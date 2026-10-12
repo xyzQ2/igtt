@@ -1,0 +1,81 @@
+from datetime import date, datetime, timedelta, timezone
+
+import pytest
+
+from src import dashboard, db
+
+TODAY = date.today()
+CFG = {"brand": {"name": "B", "instagram": "me"},
+       "monitoring": {"posts_lookback_days": 30, "daily_top_posts": 25},
+       "scoring": {"views_per_follower": 0.3, "engagement_rate": 0.25,
+                   "total_engagement": 0.2, "raw_views": 0.15, "comments": 0.1,
+                   "engagement_per_follower": 0.25, "ai_weight": 0.2},
+       "ideas": {"daily_count": 10}}
+
+
+@pytest.fixture()
+def conn(tmp_path):
+    c = db.connect(str(tmp_path / "t.db"))
+    db.init_schema(c)
+    yield c
+    c.close()
+
+
+def add(conn, username, code, likes, days_ago=1, ours=False, snaps=None):
+    aid = db.upsert_account(conn, username, followers=1000)
+    posted = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    pid = db.upsert_post(conn, {"shortcode": code, "account_id": aid, "is_ours": int(ours),
+                                "posted_at": posted.isoformat(), "caption": "<b>x</b>",
+                                "url": "https://instagram.com/p/" + code})
+    for i, n in enumerate(snaps or [likes]):
+        t = (datetime.now(timezone.utc) - timedelta(days=len(snaps or [1]) - i)).isoformat()
+        db.add_snapshot(conn, pid, None, n, 0 if n is not None else None, None, captured_at=t)
+    return pid
+
+
+def test_suggested_posts_are_measured_against_our_normal(conn):
+    for i, likes in enumerate([100, 100, 100]):
+        add(conn, "me", f"N{i}", likes, ours=True)
+    add(conn, "me", "HIT", 300, ours=True)
+    idea = db.save_idea(conn, {"concept": "c", "hook": "h"}, None, "LOW", 80)
+    db.link_idea(conn, idea, "HIT")
+
+    ctx = dashboard.build_context(conn, CFG)
+
+    hit = next(p for p in ctx["ours"] if p["shortcode"] == "HIT")
+    assert hit["vs_normal"] == 3.0
+    assert ctx["overall"]["suggested"] == 1
+    assert ctx["overall"]["suggested_vs_normal"] == 3.0
+    yesterday = next(d for d in ctx["daily"] if d["posts"])
+    assert yesterday["posts"] == 4 and yesterday["suggested"] == 1
+    assert sum(w["posts"] for w in ctx["weekly"]) == 4
+
+
+def test_unmeasured_post_is_none_not_zero(conn):
+    for i in range(3):
+        add(conn, "me", f"N{i}", 100, ours=True)
+    add(conn, "me", "BLANK", None, ours=True)
+    ctx = dashboard.build_context(conn, CFG)
+    blank = next(p for p in ctx["ours"] if p["shortcode"] == "BLANK")
+    assert blank["engagement"] is None
+    assert blank["vs_normal"] is None
+    assert ctx["overall"]["engagement"] == 100.0, "unmeasured must not drag the average"
+
+
+def test_top_posts_and_traction_exclude_our_own(conn):
+    add(conn, "rival", "R1", 50, snaps=[10, 50])
+    add(conn, "rival", "R2", 500, snaps=[480, 500])
+    add(conn, "me", "MINE", 9999, ours=True)
+    ctx = dashboard.build_context(conn, CFG)
+    assert [p["shortcode"] for p in ctx["top_posts"]] == ["R2", "R1"]
+    assert [p["shortcode"] for p in ctx["rising"]] == ["R1", "R2"]
+    assert ctx["rising"][0]["traction"] == pytest.approx(40, rel=0.01)
+
+
+def test_render_escapes_captions_and_hides_forms_when_static(conn):
+    add(conn, "me", "MINE", 10, ours=True)
+    ctx = dashboard.build_context(conn, CFG)
+    static = dashboard.render(ctx)
+    assert "<b>x</b>" not in static and "&lt;b&gt;x&lt;/b&gt;" in static
+    assert "/link" not in static
+    assert 'action="/link"' in dashboard.render(ctx, interactive=True)

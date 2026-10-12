@@ -96,6 +96,13 @@ CREATE TABLE IF NOT EXISTS repost_candidates (
     granted_at         TEXT,
     status             TEXT NOT NULL DEFAULT 'pending'
 );
+
+CREATE TABLE IF NOT EXISTS runs (
+    id      INTEGER PRIMARY KEY,
+    ran_at  TEXT NOT NULL,
+    ok      INTEGER NOT NULL,
+    stats   TEXT NOT NULL
+);
 """
 
 
@@ -307,46 +314,67 @@ def get_idea(conn, idea_id: int):
     return conn.execute("SELECT * FROM ideas WHERE id = ?", (idea_id,)).fetchone()
 
 
-def mark_idea_posted(conn, idea_id: int, posted_ref: str) -> None:
-    """Mark an idea published. posted_ref is the media_publish id — not the
-    Instagram shortcode, which isn't known until Apify collects the post later.
-    posted_shortcode stays NULL here; see bind_idea_shortcode.
-    """
+def link_idea(conn, idea_id, shortcode: str) -> None:
+    """Record that an idea was posted as our post `shortcode` (idea_id None
+    unlinks it). The operator posts from their phone and says which idea it came
+    from; nothing guesses."""
+    if idea_id is not None and conn.execute(
+            "SELECT 1 FROM ideas WHERE id = ?", (idea_id,)).fetchone() is None:
+        raise ValueError(f"no idea #{idea_id}")
+    conn.execute("UPDATE ideas SET posted_shortcode = NULL, status = 'new', posted_at = NULL "
+                 "WHERE posted_shortcode = ?", (shortcode,))
+    if idea_id is None:
+        conn.commit()
+        return
     conn.execute(
-        "UPDATE ideas SET status = 'posted', posted_ref = ?, posted_at = ? WHERE id = ?",
-        (posted_ref, _now(), idea_id),
+        "UPDATE ideas SET status = 'posted', posted_shortcode = ?, posted_at = ? WHERE id = ?",
+        (shortcode, _now(), idea_id),
     )
     conn.commit()
 
 
-def bind_idea_shortcode(conn, shortcode: str) -> None:
-    """Attach a newly-collected Instagram shortcode to the oldest posted idea
-    still waiting for one. No-op if there is no unbound idea, or if this
-    shortcode is already bound to some idea (keeps re-runs idempotent)."""
-    conn.execute(
+def record_run(conn, stats: dict, ok: bool) -> None:
+    import json as _json
+    conn.execute("INSERT INTO runs (ran_at, ok, stats) VALUES (?, ?, ?)",
+                 (_now(), 1 if ok else 0, _json.dumps(stats)))
+    conn.commit()
+
+
+def last_run(conn):
+    return conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+
+
+def set_watchlist(conn, usernames: list, own: str) -> None:
+    """Make exactly `usernames` (plus our own account) the active set."""
+    keep = {u.strip().lstrip("@").lower() for u in usernames if u.strip()} | {own}
+    for row in conn.execute("SELECT id, username FROM accounts").fetchall():
+        if row["username"] not in keep:
+            conn.execute("UPDATE accounts SET active = 0 WHERE id = ?", (row["id"],))
+    conn.commit()
+    for u in keep:
+        upsert_account(conn, u, active=1)
+
+
+def posts_since(conn, days: int) -> list:
+    """Posts published in the last N days, with account username and followers."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    return conn.execute(
         """
-        UPDATE ideas SET posted_shortcode = ?
-        WHERE id = (
-            SELECT id FROM ideas WHERE status = 'posted' AND posted_shortcode IS NULL
-            ORDER BY posted_at ASC LIMIT 1
-        )
-        AND NOT EXISTS (SELECT 1 FROM ideas WHERE posted_shortcode = ?)
+        SELECT p.*, a.username, a.followers AS owner_followers
+        FROM posts p JOIN accounts a ON a.id = p.account_id
+        WHERE p.posted_at >= ?
+        ORDER BY p.posted_at DESC
         """,
-        (shortcode, shortcode),
-    )
-    conn.commit()
+        (cutoff,),
+    ).fetchall()
 
 
-def posts_today(conn) -> int:
-    """Count ideas published since midnight UTC today."""
-    start = datetime.now(timezone.utc).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).isoformat()
-    row = conn.execute(
-        "SELECT COUNT(*) AS n FROM ideas WHERE status = 'posted' AND posted_at >= ?",
-        (start,),
-    ).fetchone()
-    return row["n"]
+def analyses_by_post(conn) -> dict:
+    """{post_id: text analysis dict} for every analysed post."""
+    import json as _json
+    return {r["post_id"]: _json.loads(r["json"]) for r in conn.execute(
+        "SELECT post_id, json FROM analyses WHERE tier = 'text'")}
 
 
 def latest_metrics(conn, post_id: int) -> dict:
@@ -402,15 +430,3 @@ def account_baseline(conn, account_id: int, days: int = 30, exclude_post_id=None
 
 def get_account(conn, account_id: int):
     return conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
-
-
-def repost_permission(conn, shortcode: str):
-    """Permission row for a repost, or None if there isn't one."""
-    return conn.execute(
-        """
-        SELECT rc.* FROM repost_candidates rc
-        JOIN posts p ON p.id = rc.post_id
-        WHERE p.shortcode = ?
-        """,
-        (shortcode,),
-    ).fetchone()

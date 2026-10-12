@@ -15,6 +15,7 @@ METRIC_KEYS = (
     "total_engagement",
     "raw_views",
     "comments_per_follower",
+    "engagement_per_follower",
 )
 
 # config.yaml names the last weight "comments"; the metric is per-follower.
@@ -24,6 +25,7 @@ WEIGHT_KEY_FOR = {
     "total_engagement": "total_engagement",
     "raw_views": "raw_views",
     "comments_per_follower": "comments",
+    "engagement_per_follower": "engagement_per_follower",
 }
 
 
@@ -47,7 +49,7 @@ def percentile_ranks(values: list) -> list:
 # zero — an unknown count must stay None, never become a measured 0. This is
 # where that rule keeps getting broken; do not "simplify" it back to `or 0`.
 def post_metrics(post: dict) -> dict:
-    """Derive the five ranking metrics for one post. Missing stays None."""
+    """Derive the six ranking metrics for one post. Missing stays None."""
     views = post.get("views")
     likes = post.get("likes")
     comments = post.get("comments")
@@ -65,6 +67,9 @@ def post_metrics(post: dict) -> dict:
         "raw_views": float(views) if views is not None else None,
         "comments_per_follower": (None if comments is None
                                   else (comments / followers) if followers else None),
+        # The only reach-normalised metric when views are unknown (Meta source).
+        "engagement_per_follower": (None if engagement is None
+                                    else (engagement / followers) if followers else None),
     }
 
 

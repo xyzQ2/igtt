@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyzer Setup Guide</title>
+<style>
+  :root { --bg: #fcfcfb; --card: #ffffff; --ink: #0b0b0b; --muted: #52514e;
+          --line: #e4e3df; --acc: #2a78d6; --warn: #fff6e0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a19; --card: #232322; --ink: #f0efec; --muted: #c3c2b7;
+            --line: #3a3936; --acc: #3987e5; --warn: #3a3220; }
+  }
+  body { font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--ink); margin: 0; padding: 16px; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 30px; margin-bottom: 0; }
+  h2 { margin-top: 40px; padding-top: 12px; border-top: 2px solid var(--line); }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: 4px 20px; margin: 14px 0; }
+  ol li { margin: 8px 0; }
+  .note { background: var(--warn); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  code, kbd { background: var(--line); border-radius: 4px; padding: 1px 6px; font-size: 15px; }
+  a { color: var(--acc); }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Instagram Analyzer: setup guide</h1>
+<p class="muted">Every morning it looks at the Instagram accounts you choose and finds the posts
+that are working. It suggests ideas for your own posts and shows how your posts perform.
+Setup takes about 45 minutes, once.</p>
+
+<h2>What you need</h2>
+<ul>
+  <li>A Mac connected to the internet.</li>
+  <li>Your Instagram account set as a <b>Business</b> or <b>Creator</b> account, linked to a
+      <b>Facebook Page</b> (step 3 shows how).</li>
+  <li>Your Meta developer account (<a href="https://developers.facebook.com">developers.facebook.com</a>).</li>
+  <li>An account with <b>one</b> AI company: OpenAI (ChatGPT), Anthropic (Claude) or Google (Gemini).</li>
+  <li>Optional: a Gmail address, if you want the daily email.</li>
+</ul>
+
+<h2>Step 1: Install</h2>
+<div class="step"><ol>
+  <li>Open the analyzer folder you were sent (usually in <b>Downloads</b>).</li>
+  <li>Double-click <b>Install.command</b>.</li>
+  <li>If your Mac says it <i>"could not verify"</i> the file, click <b>Done</b>. Then open
+      <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>
+      next to "Install.command", then <b>Open Anyway</b> again.</li>
+  <li>If it asks whether Terminal may access your <b>Downloads</b> folder, click <b>Allow</b>.</li>
+  <li>A black Terminal window shows progress. Wait until it says <b>✅ Installed</b> (2–5 minutes).
+      A folder called <b>Instagram Analyzer</b> then opens. It lives in your home folder.</li>
+</ol>
+<p class="muted">After that the analyzer runs by itself every day at 8:00. If your Mac is asleep at
+8:00, it runs when the Mac wakes. If the Mac is shut down, that day is skipped.</p></div>
+
+<h2>Step 2: Open your dashboard</h2>
+<div class="step"><ol>
+  <li>In the <b>Instagram Analyzer</b> folder, double-click <b>Start.command</b>. Your browser opens
+      the dashboard.</li>
+  <li>Keep the Terminal window open while you use the dashboard. Close it when you're done.</li>
+  <li>Tip: drag <b>Start.command</b> onto your Dock so it's one click next time.</li>
+  <li>Click <b>Settings</b> at the top. You'll fill this page in over the next steps.</li>
+</ol></div>
+
+<h2>Step 3: Connect Instagram</h2>
+<div class="step">
+<p><b>A. Make your Instagram a professional account</b> (skip if it already is)</p>
+<ol>
+  <li>In the Instagram app, go to your profile, then <b>☰ menu → Settings → Account type and tools →
+      Switch to professional account</b>. Choose <b>Business</b> or <b>Creator</b>.</li>
+  <li>Link it to a Facebook Page: <b>Edit profile → Page → Connect</b>, or create a Page there.</li>
+</ol>
+
+<p><b>B. Create your Meta app</b></p>
+<ol>
+  <li>Go to <a href="https://developers.facebook.com/apps">developers.facebook.com/apps</a> and click
+      <b>Create app</b>.</li>
+  <li>Give it any name, for example "My Analyzer". If asked for a use case, choose <b>Other</b>.
+      If asked for an app type, choose <b>Business</b>.</li>
+  <li>In the app dashboard, find <b>Instagram</b> in the list of products and click
+      <b>Set up</b>. If you see a choice, pick the option that mentions <b>Facebook Login</b>.</li>
+  <li>In the left menu, open <b>App settings → Basic</b>. Copy the <b>App ID</b>, then click
+      <b>Show</b> next to <b>App Secret</b> and copy that too. Paste both into a note for now.</li>
+</ol>
+
+<p><b>C. Get an access token</b></p>
+<ol>
+  <li>Open the <a href="https://developers.facebook.com/tools/explorer/">Graph API Explorer</a>.</li>
+  <li>On the right, set <b>Meta App</b> to the app you just made.</li>
+  <li>Under <b>Permissions</b>, add each of these:
+      <code>instagram_basic</code> <code>instagram_manage_insights</code> <code>pages_show_list</code>
+      <code>pages_read_engagement</code> <code>business_management</code></li>
+  <li>Click <b>Generate Access Token</b>. Log in, and tick your Facebook Page <b>and</b> your Instagram
+      account when asked.</li>
+  <li>Copy the long token that appears in the <b>Access Token</b> box.</li>
+</ol>
+
+<p><b>D. Paste into Settings</b></p>
+<ol>
+  <li>In <b>Settings → 3. Instagram connection</b>, paste the App ID, the App Secret and the token.</li>
+  <li>Leave "Where posts come from" on <b>Meta (free)</b>.</li>
+  <li>Click <b>Save settings</b>. You should see <b>"Connected to Instagram @yourhandle"</b>.
+      The connection doesn't expire, so you only do this once.</li>
+</ol>
+<div class="note">Meta changes these screens often. If a button has a slightly different name, look
+for the closest match. The three things you need are always the same: <b>App ID</b>,
+<b>App Secret</b> and an <b>access token</b> with those five permissions.</div>
+</div>
+
+<h2>Step 4: Add your AI key</h2>
+<div class="step"><ol>
+  <li>Pick <b>one</b> company and open its key page:
+    <ul>
+      <li>OpenAI: <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a></li>
+      <li>Anthropic: <a href="https://console.anthropic.com/settings/keys">console.anthropic.com/settings/keys</a></li>
+      <li>Google: <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a></li>
+    </ul></li>
+  <li>Create a new key and copy it. Add some credit on that company's billing page; $10 is plenty
+      to start. Also set a monthly spending limit there so costs never surprise you.</li>
+  <li>In <b>Settings → 2. AI provider</b>, choose the same company, paste the key and click <b>Save settings</b>.</li>
+</ol></div>
+
+<h2>Step 5: Daily email (optional)</h2>
+<div class="step"><ol>
+  <li>Go to <a href="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</a>.
+      If it says the setting isn't available, turn on <b>2-Step Verification</b> first.</li>
+  <li>Name it "Analyzer" and click <b>Create</b>. Copy the 16-letter password.</li>
+  <li>In <b>Settings → 4. Daily email</b>, tick the box, enter your Gmail address, paste the
+      password and click <b>Save settings</b>.</li>
+</ol></div>
+
+<h2>Step 6: Choose accounts and results</h2>
+<div class="step"><ol>
+  <li><b>Settings → 1. Your brand</b>: check the name, handle and description. The AI uses
+      these to judge what fits you.</li>
+  <li><b>Settings → 5. Accounts to watch</b>: one Instagram handle per line. It starts with
+      a suggested list. Add or remove handles any time. Only <b>Business</b> or <b>Creator</b>
+      accounts can be read; personal accounts are skipped.</li>
+  <li><b>Settings → 6. Results</b>: how far back to look, how many posts to check and how many
+      ideas you get each day. Bigger numbers cost a little more AI credit.</li>
+  <li>Click <b>Save settings</b>.</li>
+</ol></div>
+
+<h2>Step 7: First run</h2>
+<div class="step"><ol>
+  <li>Go back to the dashboard and click <b>Run analysis now</b>.</li>
+  <li>Wait 5–15 minutes, then refresh the page. You'll see top posts, and
+      <b>Today's ideas &amp; report</b> will have fresh ideas.</li>
+  <li>If the top of the dashboard shows <b>❌</b>, see "If something goes wrong" below.</li>
+</ol></div>
+
+<h2>Every day</h2>
+<div class="step"><ol>
+  <li>Read the morning email, or open the dashboard and click <b>Today's ideas &amp; report</b>.</li>
+  <li>Make and post the ideas you like from your phone, as you normally would.</li>
+  <li>The next day, open the dashboard. In <b>Your recent posts</b>, choose the idea each post came
+      from in the dropdown next to it. That's how the dashboard can tell suggested posts from the rest.</li>
+  <li>Check <b>Daily</b> and <b>Weekly</b>. <b>"Suggested vs normal"</b> above <b>1.0×</b> means
+      posts from suggested ideas are beating your usual engagement.</li>
+</ol></div>
+
+<h2>If something goes wrong</h2>
+<ul>
+  <li><b>❌ collected 0 posts</b>: redo Step 3 C–D to reconnect Instagram. Check that the
+      accounts you watch are Business or Creator accounts.</li>
+  <li><b>No ideas appear</b>: check the AI key and that the account has credit (Step 4).</li>
+  <li><b>No email</b>: create a new Gmail app password (Step 5) and save it again.</li>
+  <li><b>Dashboard won't open</b>: double-click <b>Start.command</b> again. Your browser should open
+      <code>http://127.0.0.1:8765</code>.</li>
+  <li>For a detailed record to send to whoever helps you, open the file <code>logs/run.log</code>
+      inside the Instagram Analyzer folder.</li>
+</ul>
+
+<h2>Removing it</h2>
+<p>Drag the <b>Instagram Analyzer</b> folder from your home folder to the Trash.</p>
+
+</main>
+</body>
+</html>

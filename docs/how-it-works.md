@@ -130,30 +130,28 @@ full script, on-screen text, shot list, caption, CTA, format, difficulty, confid
 and a `similarity_risk` of LOW/MEDIUM/HIGH.
 
 `similarity_risk` is a guardrail, not a label. An idea that would be recognisably the same
-video as a single source post is marked HIGH, and **`post.py` refuses to publish it**. The
-system is built to abstract formats, never to clone posts.
+video as a single source post is marked HIGH and is **dropped before you ever see it**.
+The system is built to abstract formats, never to clone posts.
 
 Output lands in `reports/latest.html` (and email, if `email.enabled` is turned on).
 
 ---
 
-## 5. Publishing
+## 5. Posting and measuring
 
-You choose. Nothing posts by itself — `posting.auto` is deliberately unwired.
+You post from your phone; nothing posts by itself. Then tell the system which idea
+the post came from:
 
-1. Make the video
-2. Commit it to `media/` and push
-3. Run the **Publish approved idea** workflow with the `idea_id` and `media/<filename>`
+- **Local install:** in the dashboard's *Your recent posts* table, pick the idea in
+  the dropdown next to the post.
+- **GitHub Actions:** run the **Link a post to the idea it came from** workflow with
+  the idea number and the post's link (or `python link.py <idea_id> <url>`).
 
-Or locally: `python3 post.py <idea_id> --media-url media/reel-0912.mp4`
-
-Eight guardrails refuse before any network call: unknown id, already posted, HIGH
-similarity risk, no media_url, unreachable media_url, missing credentials, daily cap
-(`posting.max_per_day`, 1), and a repost lacking both recorded permission and a credit
-handle.
-
-After publishing, our own post is tracked like any other — which is how input 4 above gets
-its data, and how the loop closes.
+Our own posts are collected every run like everyone else's. The dashboard compares
+each one with the median engagement (likes + comments + shares) of our other posts,
+then splits "suggested" from "other", day by day and week by week. That comparison,
+plus the views-vs-baseline results fed back into idea generation (input 4 above),
+closes the loop.
 
 ---
 
@@ -167,6 +165,8 @@ its data, and how the loop closes.
 | Reward reach over engagement | `scoring.*` weights |
 | Catch trends earlier | lower `scoring.acceleration_threshold` |
 | More ideas per day | `ideas.daily_count` |
+| A different AI company | `models.provider` (anthropic / openai / google) + its key |
+| Free data instead of Apify | `monitoring.source: meta` (no view counts for other accounts) |
 | Trust the AI verdict more | raise `scoring.ai_weight` |
 
 Costs scale with the AI candidate counts and the account pool, not with how many posts

@@ -1,6 +1,6 @@
 ---
 name: igtt
-description: Use when working in the igtt project — the daily Instagram content-intelligence system (currently @jaquelinebycie, a female fashion model; formerly @drinktoiletwine). Covers the pipeline stages, the None-never-0 data rule, the cost ceilings, the prompt-formatting traps, and the publish guardrails. Invoke before editing src/score.py, src/apify.py, app.py, post.py, discover.py, or anything under prompts/.
+description: Use when working in the igtt project — the daily Instagram content-intelligence system (currently @jaquelinebycie, a female fashion model; formerly @drinktoiletwine). Covers the pipeline stages, the None-never-0 data rule, the cost ceilings, the prompt-formatting traps, the LLM/data-source switches and the local dashboard. Invoke before editing src/score.py, src/apify.py, src/meta.py, src/llm.py, app.py, serve.py, discover.py, or anything under prompts/.
 ---
 
 # igtt
@@ -14,29 +14,42 @@ the published results perform.
 ## The pipeline
 
 ```
-discover.py (manual)      app.py (Mon+Thu)                   post.py (on dispatch)
-hashtag search        →   Apify: recent posts, tracked accts
-Claude scores 0-100       → sqlite: posts + snapshots
+discover.py (manual)      app.py (daily locally / Mon+Thu on Actions)
+hashtag search (Apify) →  collect: Apify OR Meta Business Discovery (monitoring.source)
+LLM scores 0-100          → sqlite: posts + snapshots + runs
 ≥60 keep / <50 drop       → numeric rank (all posts, free)
-                          → Claude text tier   (top 40, caption + cover image)
-                          → Gemini video tier  (top 15)
+                          → LLM text tier   (top 40, caption + cover image)
+                          → Gemini video tier (top 15; OFF)
                           → pattern clustering (7/30/90d)
-                          → 10 briefs for the brand
-                          → reports/latest.html + email (SMTP_* secrets)
-                               ↓ operator picks one
-                                            GH Actions dispatch
-                                            → IG Graph API → mark posted
-                                            → track our own metrics
+                          → 10 briefs → reports/latest.html + email
+                          → reports/dashboard.html (src/dashboard.py, no AI)
+                               ↓ operator posts from phone, links post → idea
+                          serve.py dropdown / link.py / link.yml
 ```
 
-**Video tier is OFF** (`candidate_posts_for_video_ai: 0`, 2026-09-27, user's cost call —
-do not re-enable unasked). Two AI vendors on purpose: Claude does all text, Gemini watches video because Claude has
-no native video input. Splitting them was cheaper than frame extraction plus transcription.
+**Universal since 2026-10-12.** Brand, AI provider and data source are all config.
+`src/llm.py` gives every call site the Anthropic `client.messages.create` shape; OpenAI
+(raw HTTP) and Google (google-genai) are shims that translate Anthropic image blocks.
+Blank `models.text_analysis`/`strategy` → provider defaults (`resolve_models`, applied in
+`load_config`). Publishing (post.py, src/instagram.py, raw-GitHub media hosting) was
+removed: the operator posts from their phone and links the post to its idea; the
+dashboard compares suggested vs other posts against our median engagement.
 
-**Media hosting.** The Graph API has no upload endpoint — Instagram fetches the `media_url`
-itself. A `media_url` without a scheme is resolved against `posting.media_base_url`, which
-points at this repository's raw URLs; that works only because the repo is **public**. Make
-it private and publishing breaks silently. Absolute URLs pass through untouched.
+**Video tier is OFF** (`candidate_posts_for_video_ai: 0`, 2026-09-27, user's cost call —
+do not re-enable unasked). Video stays Gemini-only whatever `models.provider` says.
+
+**Meta source** (`src/meta.py`, graph.facebook.com, Page token from Facebook Login —
+NOT the graph.instagram.com Instagram-Login token): Business Discovery sees only
+Business/Creator accounts and never reports views, so `engagement_per_follower` carries
+the ranking there. Our own posts come from `/{ig-user-id}/media` + insights (views,
+shares). `meta.connect` turns a Graph API Explorer token into a non-expiring Page token.
+Hashtag discovery has no Meta equivalent (hashtag media carries no username).
+
+**Local install** (`Install.command` → `~/Instagram Analyzer`, launchd `com.igtt.daily`
+at 08:00; `Start.command` → `serve.py` on 127.0.0.1:8765). It lives outside Downloads
+because macOS TCC blocks background jobs from reading Downloads/Desktop/Documents.
+`serve.py` rejects foreign Host/Origin (DNS rebinding/CSRF), never renders secrets
+back, and writes secrets to `.env` via `set_key`.
 
 ## Non-negotiables
 
@@ -63,15 +76,11 @@ hashtag scrape alone cost ~$2–4/month). Budget: ~16 accounts × 8 posts + 16 `
 first. When the credit runs out, Apify returns 402 and the run collects 0 posts; `app.py` then
 skips every Claude call and exits 1, so the run shows red.
 
-**Publish guardrails.** `post.py` refuses on: unknown id, already posted, HIGH
-`similarity_risk`, no `media_url`, a `media_url` that fails a HEAD check, missing
-credentials, daily cap reached, and a repost whose `repost_candidates` row lacks
-`permission_granted = 1` AND a non-empty `credit_handle`. Every refusal precedes any network call. The repost gate is a copyright
-guardrail — a strike costs the account the system exists to grow. Each guard has a test
-that fails when the guard is removed; keep it that way.
+**Idea linking is manual.** `db.link_idea` moves a shortcode between ideas (one post,
+at most one idea) and `None` unlinks. Nothing guesses which idea a post came from.
 
-**XSS.** `src/report.py` renders scraped captions into HTML. `autoescape=True` is
-mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-ask.
+**XSS.** `src/report.py` and `src/dashboard.py` render scraped captions into HTML.
+`autoescape=True` is mandatory; `serve.py` escapes with `html.escape`. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-ask.
 
 ## Traps that pass unit tests and break at runtime
 
@@ -86,7 +95,7 @@ mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-a
   `ALTER TABLE` anywhere. Adding a column means an existing `data/intelligence.db` breaks;
   delete it and let it rebuild.
 - **State lives in git.** Both workflows commit `data/intelligence.db` back, because
-  Actions has no persistent disk and the 30/90-day windows need the history. All three
+  Actions has no persistent disk and the 30/90-day windows need the history. daily, discover and link
   workflows share `concurrency: group: igtt-db` — a workflow that writes the DB without
   it will silently overwrite a day of history, since git cannot merge SQLite.
 
@@ -135,9 +144,12 @@ mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-a
 | `src/analyze.py` | Claude text tier + Gemini video tier |
 | `src/patterns.py`, `src/ideas.py` | clustering and brief generation |
 | `src/report.py` | jinja2 render + optional SMTP |
-| `src/instagram.py` | Instagram Graph API container + publish |
+| `src/llm.py` | provider switch: Anthropic SDK or OpenAI/Google shim |
+| `src/meta.py` | Meta Graph API source: Business Discovery, own insights, connect |
+| `src/dashboard.py` | dashboard context from the DB, no AI |
+| `serve.py` | local dashboard + settings + Run now |
 | `prompts/*.md` | tuned without touching code |
-| `app.py` / `discover.py` / `post.py` | the three entry points |
+| `app.py` / `discover.py` / `serve.py` / `link.py` | entry points |
 | `docs/how-it-works.md` | operator guide: discovery, metrics, pattern clustering, the knobs |
 
 ## Commands
@@ -145,10 +157,11 @@ mandatory. Reaching for `|safe`, `Markup`, or `autoescape=False` is a stop-and-a
 ```
 python app.py                    one full daily run
 python discover.py               re-evaluate the account pool
-python post.py <idea_id>         publish one approved idea
+python serve.py                  local dashboard + settings
+python link.py <idea_id> <url>   mark which idea a post came from
 python seed_accounts.py          load seeds.txt
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Tests never touch the network — Apify, Anthropic, Gemini and the Graph API are all mocked at
+Tests never touch the network — Apify, Meta, Anthropic, OpenAI and Gemini are all mocked at
 their boundary, and fixtures live in `tests/fixtures/`.

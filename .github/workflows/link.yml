@@ -1,15 +1,15 @@
-name: Publish approved idea
+name: Link a post to the idea it came from
 
 on:
   workflow_dispatch:
     inputs:
       idea_id:
-        description: 'Idea id from the daily report'
+        description: 'Idea number from the daily report'
         required: true
         type: string
-      media_url:
-        description: 'Optional: finished video URL, if not already in the idea brief'
-        required: false
+      post_url:
+        description: 'Link to your Instagram post'
+        required: true
         type: string
 
 permissions:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  link:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +29,13 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Publish
+      - name: Link
         env:
-          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IDEA_ID: ${{ inputs.idea_id }}
-          MEDIA_URL: ${{ inputs.media_url }}
-        run: python post.py "$IDEA_ID" --media-url "$MEDIA_URL"
+          POST_URL: ${{ inputs.post_url }}
+        run: python link.py "$IDEA_ID" "$POST_URL"
       - name: Commit updated database
         uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842  # v5.0.1
         with:
-          commit_message: "chore: published idea ${{ inputs.idea_id }}"
+          commit_message: "chore: link idea ${{ inputs.idea_id }}"
           file_pattern: data/intelligence.db

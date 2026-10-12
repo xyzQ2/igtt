@@ -1,80 +1,62 @@
 # igtt — Instagram Content Intelligence
 
-Daily competitive intelligence and content briefs for
-[@drinktoiletwine](https://www.instagram.com/drinktoiletwine/).
+Daily competitive intelligence, content ideas and a performance dashboard for any
+Instagram brand. Set the brand in `config.yaml` (or the Settings page).
 
 ## What it does
 
-Every morning it collects recent posts from ~75 tracked Instagram accounts, ranks
-them numerically for free, sends only the strongest to Claude for strategist
-analysis and the top videos to Gemini for a recreation blueprint, clusters recurring
-formats across 7/30/90 days, generates ten original content briefs, and writes
-`reports/latest.html`.
+Every run it collects recent posts from the accounts you track, ranks them
+numerically for free, sends only the strongest to an AI model for analysis,
+clusters recurring formats across 7/30/90 days, writes ten original content ideas,
+and builds:
 
-Published posts are tracked the same way, so the system learns which formats work
-for this account specifically.
+- `reports/latest.html`: the daily report with ideas (it's also emailed if email is on)
+- `reports/dashboard.html`: top posts, traction (who is gaining fastest) and how
+  **your** posts made from suggested ideas perform against your normal, daily
+  and weekly
 
-## Setup
+You post from your phone as usual. Then you mark which idea a post came from, so the
+dashboard can measure suggested content separately.
 
-```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env      # fill in your keys
-# put real handles in seeds.txt, then:
-python seed_accounts.py
-```
+## Choices
 
-## Running
+| Setting | Options |
+|---|---|
+| AI provider (`models.provider`) | `anthropic` (ANTHROPIC_API_KEY), `openai` (OPENAI_API_KEY), `google` (GEMINI_API_KEY) |
+| Data source (`monitoring.source`) | `meta`: free, uses your own Meta app (Business/Creator accounts only, no view counts for others; needs IG_ACCESS_TOKEN + IG_USER_ID). `apify`: paid scraper, includes views (APIFY_TOKEN) |
+| Email | `email.enabled` + SMTP_HOST / SMTP_USER / SMTP_PASSWORD / SMTP_TO |
+
+Blank `models.text_analysis` / `models.strategy` use the provider defaults in
+`src/llm.py`. Video analysis is Gemini-only and off by default.
+
+## Two ways to run it
+
+**On a Mac, no technical setup:** double-click `Install.command`, then
+`Start.command`. Everything is set from the Settings page in the browser, and the
+run happens daily at 8:00. Step-by-step guide: `START HERE.html`.
+
+**On GitHub Actions:** `daily.yml` runs on its cron (currently Mon+Thu, which keeps
+Apify inside its free tier). Each run commits `data/intelligence.db` back, because
+Actions has no persistent disk. To mark which idea a post came from, run the
+**Link a post to the idea it came from** workflow. Repository secrets are the
+environment variables named in the table above.
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `python app.py` | One full daily run |
-| `python discover.py` | Re-evaluate and evolve the account pool |
-| `python post.py <idea_id>` | Publish one approved idea |
-| `python -m pytest tests/ -v` | Run the test suite (no network) |
+| `python app.py` | One full run |
+| `python serve.py` | Local dashboard + settings at http://127.0.0.1:8765 |
+| `python link.py <idea_id> <post URL>` | Mark which idea a post came from |
+| `python discover.py` | Find new accounts via hashtags (Apify only) |
+| `python seed_accounts.py` | Load `seeds.txt` |
+| `python -m pytest tests/ -q` | Test suite (no network) |
 
-## Day-to-day
-
-You edit two files and nothing else:
-
-- `config.yaml` — accounts, limits, scoring weights, models
-- `.env` — API keys
-
-To publish, commit the finished video to `media/` and push it, then open
-`reports/latest.html`, pick an idea, and run the **Publish approved idea**
-workflow with its `idea_id` and `media/<filename>` as the `media_url` input.
-Locally this is `python post.py <idea_id> --media-url media/<filename>`.
-
-Instagram fetches the file itself — there is no upload endpoint — so the URL has
-to be publicly reachable. A `media_url` without a scheme is resolved against
-`posting.media_base_url` in `config.yaml`, which points at this repository's raw
-URLs; that works only because the repository is public. A full `https://` URL is
-passed through untouched if you host the video elsewhere. Either way the URL is
-checked with a HEAD request before anything is sent to Instagram, because an
-unfetchable URL fails inside the media container with an opaque error.
-
-## Scheduling
-
-GitHub Actions runs `daily.yml` Mondays and Thursdays at 11:00 UTC; `discover.yml` runs only on manual dispatch (Apify free-tier budget).
-Both commit `data/intelligence.db` back to the repository — that is how state survives
-between runs, since Actions has no persistent disk.
-
-Required repository secrets: `APIFY_TOKEN`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
-`IG_ACCESS_TOKEN`, `IG_USER_ID`, and the `SMTP_*` set if email is
-enabled.
-
-The database schema is created on first run and has no migrations. If you upgrade from a
-version before a schema change (e.g., a new column was added), delete `data/intelligence.db`
-and let it be recreated.
-
-## Cost ceilings
-
-Enforced in code from `config.yaml`: 75 accounts, 7-day lookback, 40 text analyses
-per day, 15 video analyses per day, 10 ideas per day, 1 post per day.
+The database schema has no migrations. New tables are added automatically. If a
+column changes, delete `data/intelligence.db` and it will be rebuilt.
 
 ## What it will not do
 
-- Copy competitor content. Formats are abstracted; ideas scored HIGH similarity risk
-  are discarded before you ever see them.
-- Repost anyone's video without recorded permission and a credit handle.
-- Post unattended. `posting.auto` is `false`.
+- Copy competitor content. Formats are abstracted, and ideas scored HIGH similarity
+  risk are discarded before you see them.
+- Post for you. You publish. It measures.
